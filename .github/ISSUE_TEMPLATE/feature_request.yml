@@ -1,0 +1,21 @@
+name: Пропозиція
+description: Запропонуйте нову можливість або покращення
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Яке завдання потрібно розв'язати?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Пропоноване рішення
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Додатковий контекст

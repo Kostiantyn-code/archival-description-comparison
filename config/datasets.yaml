@@ -1,0 +1,24 @@
+schema_version: "1.0"
+
+# Один файл Excel = один логічний масив для порівняння.
+# Усі аркуші книги об'єднуються у візуалізаціях, але залишаються окремими
+# описами у контрольних таблицях.
+datasets: []
+
+# За потреби замініть порожній список записами такого виду:
+# datasets:
+#   - pattern: "dataset_a.xlsx"
+#     id: dataset_a
+#     label: "Повна назва першого масиву"
+#     short_label: "Масив A"
+#     reference: "Архів, фонд, описи"
+#     minimum_year: 1800
+#     maximum_year: 1901
+#
+#   - pattern: "dataset_b.xlsx"
+#     id: dataset_b
+#     label: "Повна назва другого масиву"
+#     short_label: "Масив B"
+#     reference: "Архів, фонд, описи"
+#     minimum_year: 1917
+#     maximum_year: 1920

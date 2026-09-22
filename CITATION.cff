@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "Archival Description Comparison"
+type: software
+authors:
+  - family-names: "Kartuzov"
+    given-names: "Kostiantyn"
+version: 0.2.0
+date-released: 2026-09-22
+license: MIT
+repository-code: "https://github.com/Kostiantyn-code/archival-description-comparison"
+url: "https://github.com/Kostiantyn-code/archival-description-comparison"
+abstract: >-
+  A local Python tool for comparative chronological, thematic, and lexical
+  analysis of archival finding aids stored in Excel workbooks.
+keywords:
+  - archives
+  - digital humanities
+  - archival description
+  - content analysis
+  - Python
+  - Excel

@@ -1,0 +1,45 @@
+name: Повідомлення про помилку
+description: Допоможіть відтворити й виправити проблему
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Опис проблеми
+      description: Що сталося і якої поведінки ви очікували?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Як відтворити
+      description: Наведіть послідовність дій і команду запуску.
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Версія Python
+      placeholder: "Python 3.12.7"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Операційна система
+      placeholder: "Windows 11 / Ubuntu 24.04 / macOS"
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Повідомлення про помилку
+      render: shell
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Перевірка даних
+      options:
+        - label: Приклад не містить архівних даних з обмеженим доступом або персональних даних.
+          required: true
