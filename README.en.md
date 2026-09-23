@@ -11,7 +11,7 @@ analysis of archival finding aids stored in Excel workbooks. It produces XLSX
 and CSV tables, PNG charts, a JSON run manifest, and a self-contained HTML
 report without sending research data to external services.
 
-Current version: `0.2.0`.
+Development version: `0.3.0.dev0`; latest release: `v0.2.0`.
 
 ## Data model
 
@@ -21,15 +21,15 @@ Current version: `0.2.0`.
 | Worksheet | A separate archival inventory |
 | Workbook | A logical dataset compared with other workbooks |
 
-Worksheets remain distinguishable in control tables, while all worksheets in
-one workbook are aggregated in summaries, charts, thematic shares, and lexical
-analysis.
+Worksheets remain distinguishable in tables and description-level charts.
+Workbook summaries, comparative charts, and vocabulary aggregate all sheets.
 
 ## Features
 
 - any number of `.xlsx` workbooks, with a minimum of two;
 - multi-sheet workbook aggregation;
-- chronology and dataset-size comparisons;
+- chronology and dataset-size comparisons, plus a separate series per worksheet;
+- description-level breakdowns of dataset size, classification, and categories;
 - dictionary-based Ukrainian and Russian title classification;
 - separate coverage and unclassified-title reports;
 - frequent, distinctive, and shared vocabulary;
@@ -90,6 +90,11 @@ Each thematic percentage uses the number of analyzable titles in that dataset
 as its denominator. Because classification is multi-label, category shares may
 sum to more than 100%. See [`docs/methodology.md`](docs/methodology.md) for the
 methodological notes.
+
+The `*_by_description.csv` files and matching sheets in `comparison.xlsx`
+provide annual counts, classification states, and thematic categories per
+worksheet. Category tables give both the worksheet and workbook denominators.
+Stacked description charts show absolute counts; existing workbook charts remain.
 
 ## Testing
 

@@ -118,7 +118,7 @@ def main() -> Path:
         output_files.append(workbook_path)
     chart_files: list[str] = []
     if reports.get("charts", True):
-        chart_files = create_charts(figures_dir, datasets, categories, analysis)
+        chart_files = create_charts(figures_dir, datasets, descriptions, categories, analysis)
         output_files.extend(figures_dir / filename for filename in chart_files)
     if reports.get("html", True):
         html_path = run_dir / "report.html"

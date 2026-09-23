@@ -94,7 +94,10 @@ def write_csv_reports(
         "unclassified_cases.csv": analysis["unclassified"],
         "descriptions.csv": analysis["descriptions"],
         "chronology.csv": analysis["chronology"],
+        "chronology_by_description.csv": analysis["chronology_by_description"],
         "categories.csv": analysis["categories"],
+        "categories_by_description.csv": analysis["categories_by_description"],
+        "classification_by_description.csv": analysis["classification_by_description"],
         "vocabulary.csv": analysis["vocabulary"],
         "common_vocabulary.csv": analysis["common_vocabulary"],
         "similarities.csv": analysis["similarities"],
@@ -323,6 +326,13 @@ def write_workbook(
         chronology_columns, chronology_data,
         subtitle="Справу з діапазоном дат зараховано до кожного року в межах діапазону.",
     )
+    _tabular_sheet(
+        workbook, "Хронологія описів", "Присутність справ кожного опису за роками",
+        [("dataset", "Масив"), ("sheet_name", "Аркуш"), ("reference", "Опис"),
+         ("year", "Рік"), ("cases", "Справ")],
+        analysis["chronology_by_description"],
+        subtitle="Діапазон дат зараховано до кожного року; описи однієї книги залишаються окремими.",
+    )
     category_columns, category_data, category_percent = _category_wide(datasets, categories, analysis["categories"])
     _tabular_sheet(
         workbook, "Категорії", "Тематична структура масивів",
@@ -332,6 +342,31 @@ def write_workbook(
             "може належати до кількох категорій, тому сума часток може перевищувати 100%."
         ),
         percent_keys=category_percent,
+    )
+    _tabular_sheet(
+        workbook, "Категорії описів", "Категорії за окремими описами",
+        [("dataset", "Масив"), ("sheet_name", "Аркуш"), ("reference", "Опис"),
+         ("category", "Категорія"), ("cases", "Справ"),
+         ("description_titles_total", "Справ в описі"),
+         ("percent_of_description_titles", "Частка опису"),
+         ("dataset_titles_total", "Справ у масиві"),
+         ("percent_of_dataset_titles", "Частка масиву")],
+        analysis["categories_by_description"],
+        subtitle="Для частки масиву за 100% взято всі його справи; для частки опису — справи відповідного аркуша.",
+        percent_keys={"percent_of_description_titles", "percent_of_dataset_titles"},
+    )
+    _tabular_sheet(
+        workbook, "Класифікація описів", "Покриття класифікацією за описами",
+        [("dataset", "Масив"), ("sheet_name", "Аркуш"), ("reference", "Опис"),
+         ("analyzable_titles", "Справ в описі"),
+         ("subject_classified", "Тематично класифіковано"),
+         ("context_only", "Лише контекст"), ("unclassified", "Не класифіковано"),
+         ("subject_classified_percent", "Класифіковано, %"),
+         ("context_only_percent", "Лише контекст, %"),
+         ("unclassified_percent", "Не класифіковано, %")],
+        analysis["classification_by_description"],
+        subtitle="Три взаємовиключні стани; частки в таблиці обчислено від справ відповідного опису.",
+        percent_keys={"subject_classified_percent", "context_only_percent", "unclassified_percent"},
     )
     _tabular_sheet(
         workbook, "Характерна лексика", "Частотна та характерна лексика",
@@ -387,9 +422,76 @@ def write_workbook(
     workbook.save(path)
 
 
+def _description_colors(descriptions: list[Description]) -> dict[tuple[str, str], str]:
+    """Give descriptions of one archive shades of the same hue."""
+    import matplotlib.colors as mcolors
+
+    families = [
+        ("#366A9A", "#D8E8F5"), ("#92591D", "#F4E0BE"),
+        ("#557A46", "#D6E5D1"), ("#70477C", "#E3D5E7"),
+        ("#A23B72", "#F1D4E1"), ("#1D7777", "#D0E9E7"),
+    ]
+    grouped: dict[str, list[Description]] = defaultdict(list)
+    for item in descriptions:
+        grouped[item.archive.strip() or item.dataset_id].append(item)
+    colors: dict[tuple[str, str], str] = {}
+    for index, group in enumerate(grouped.values()):
+        dark, light = (mcolors.to_rgb(value) for value in families[index % len(families)])
+        for shade, item in enumerate(group):
+            factor = 0.38 if len(group) == 1 else shade / max(len(group) - 1, 1)
+            colors[(item.dataset_id, item.sheet_name)] = mcolors.to_hex(
+                tuple(start * (1 - factor) + end * factor for start, end in zip(dark, light))
+            )
+    return colors
+
+
+def _stacked_description_bars(
+    ax, labels: list[str], descriptions: list[Description],
+    values: dict[tuple[str, str], list[int]], colors: dict[tuple[str, str], str],
+    total_label: str = "Усього",
+) -> None:
+    from matplotlib.colors import to_rgb
+
+    totals = [
+        sum(values[(item.dataset_id, item.sheet_name)][index] for item in descriptions)
+        for index in range(len(labels))
+    ]
+    offsets = [0] * len(labels)
+    maximum = max(totals, default=0)
+    for item in descriptions:
+        key = (item.dataset_id, item.sheet_name)
+        segment = values[key]
+        color = colors[key]
+        bars = ax.barh(labels, segment, left=offsets, color=color,
+                       label=item.reference, edgecolor="white", linewidth=0.25)
+        visible = [
+            f"{value:,}".replace(",", " ")
+            if value >= 10 and value / max(total, 1) >= 0.025
+            and value / max(maximum, 1) >= 0.018 else ""
+            for value, total in zip(segment, totals)
+        ]
+        red, green, blue = to_rgb(color)
+        label_color = "white" if 0.2126 * red + 0.7152 * green + 0.0722 * blue < 0.55 else "#202020"
+        ax.bar_label(bars, labels=visible, label_type="center", fontsize=7, color=label_color)
+        offsets = [left + value for left, value in zip(offsets, segment)]
+    for index, total in enumerate(totals):
+        if total:
+            ax.text(total + max(maximum * 0.012, 0.5), index,
+                    f"{total_label}: {total:,}".replace(",", " "),
+                    va="center", fontsize=8)
+    ax.set_xlim(0, maximum * 1.24 if maximum else 1)
+    ax.invert_yaxis()
+    ax.grid(axis="x", alpha=0.22)
+    ax.set_axisbelow(True)
+    ax.legend(title="Архівний опис", frameon=False, fontsize=8,
+              loc="lower center", bbox_to_anchor=(0.5, 1.02),
+              ncol=min(len(descriptions), 3))
+
+
 def create_charts(
     figures_dir: Path,
     datasets: list[Dataset],
+    descriptions: list[Description],
     categories: list[Category],
     analysis: dict[str, Any],
 ) -> list[str]:
@@ -418,6 +520,28 @@ def create_charts(
     plt.close(fig)
     created.append(filename)
 
+    if descriptions:
+        colors = _description_colors(descriptions)
+        description_sizes = {
+            (row["dataset_id"], row["sheet_name"]): row["analyzable_titles"]
+            for row in analysis["descriptions"]
+        }
+        fig, ax = plt.subplots(figsize=(12.5, max(4.5, len(datasets) * 0.9 + 2)))
+        _stacked_description_bars(
+            ax, labels, descriptions,
+            {(item.dataset_id, item.sheet_name): [
+                description_sizes[(item.dataset_id, item.sheet_name)] if item.dataset_id == dataset.id else 0
+                for dataset in datasets
+            ] for item in descriptions}, colors,
+        )
+        ax.set_title("Склад порівнюваних масивів за описами", pad=75)
+        ax.set_xlabel("Кількість заголовків справ")
+        fig.tight_layout()
+        filename = "dataset_sizes_by_description.png"
+        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
+        plt.close(fig)
+        created.append(filename)
+
     chronology = analysis["chronology"]
     if chronology:
         fig, axes = plt.subplots(
@@ -442,6 +566,31 @@ def create_charts(
         fig.suptitle("Хронологічний розподіл справ", fontsize=13)
         fig.tight_layout()
         filename = "chronology.png"
+        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
+        plt.close(fig)
+        created.append(filename)
+
+    chronology_parts = analysis["chronology_by_description"]
+    if chronology_parts:
+        fig, axes = plt.subplots(
+            len(descriptions), 1, figsize=(12, max(4.8, 2.25 * len(descriptions))),
+            sharex=True, squeeze=False,
+        )
+        yearly = {(row["dataset_id"], row["sheet_name"], row["year"]): row["cases"]
+                  for row in chronology_parts}
+        years = sorted({row["year"] for row in chronology_parts})
+        short = {dataset.id: dataset.short_label for dataset in datasets}
+        for index, item in enumerate(descriptions):
+            ax = axes[index][0]
+            ax.plot(years, [yearly[(item.dataset_id, item.sheet_name, year)] for year in years],
+                    color=colors[(item.dataset_id, item.sheet_name)], linewidth=1.7)
+            ax.set_title(f"{short[item.dataset_id]} · {item.reference}", loc="left", fontsize=9)
+            ax.set_ylabel("Справ")
+            ax.grid(alpha=0.22)
+        axes[-1][0].set_xlabel("Рік")
+        fig.suptitle("Хронологічний розподіл за окремими описами", fontsize=13)
+        fig.tight_layout()
+        filename = "chronology_by_description.png"
         fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
         plt.close(fig)
         created.append(filename)
@@ -490,6 +639,34 @@ def create_charts(
         plt.close(fig)
         created.append(filename)
 
+    by_description = {
+        (row["dataset_id"], row["sheet_name"]): row
+        for row in analysis["classification_by_description"]
+    }
+    if by_description:
+        fig, axes = plt.subplots(len(datasets), 1,
+                                 figsize=(12.5, max(5.5, 4.7 * len(datasets))), squeeze=False)
+        states = [("subject_classified", "Тематично класифіковано"),
+                  ("context_only", "Лише контекст"),
+                  ("unclassified", "Не класифіковано")]
+        for index, dataset in enumerate(datasets):
+            subset = [item for item in descriptions if item.dataset_id == dataset.id]
+            ax = axes[index][0]
+            _stacked_description_bars(
+                ax, [label for _, label in states], subset,
+                {(item.dataset_id, item.sheet_name): [
+                    by_description[(item.dataset_id, item.sheet_name)][key] for key, _ in states
+                ] for item in subset}, colors,
+            )
+            ax.set_title(dataset.short_label, loc="left")
+            ax.set_xlabel("Кількість справ")
+        fig.suptitle("Класифікація справ за окремими описами", fontsize=13)
+        fig.tight_layout()
+        filename = "classification_by_description.png"
+        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
+        plt.close(fig)
+        created.append(filename)
+
     lookup = {(row["dataset_id"], row["category_id"]): row for row in analysis["categories"]}
     fig, ax = plt.subplots(figsize=(11, 7))
     y_positions = list(range(len(categories)))
@@ -510,6 +687,32 @@ def create_charts(
     fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
     plt.close(fig)
     created.append(filename)
+
+    category_parts = {
+        (row["dataset_id"], row["sheet_name"], row["category_id"]): row["cases"]
+        for row in analysis["categories_by_description"]
+    }
+    if category_parts:
+        fig, axes = plt.subplots(len(datasets), 1,
+                                 figsize=(13, max(7, 7 * len(datasets))), squeeze=False)
+        for index, dataset in enumerate(datasets):
+            subset = [item for item in descriptions if item.dataset_id == dataset.id]
+            ax = axes[index][0]
+            _stacked_description_bars(
+                ax, [category.label for category in categories], subset,
+                {(item.dataset_id, item.sheet_name): [
+                    category_parts[(item.dataset_id, item.sheet_name, category.id)]
+                    for category in categories
+                ] for item in subset}, colors, total_label="Призначень",
+            )
+            ax.set_title(dataset.short_label, loc="left")
+            ax.set_xlabel("Кількість присвоєнь категорії")
+        fig.suptitle("Тематичні категорії за окремими описами", fontsize=13)
+        fig.tight_layout()
+        filename = "categories_by_description.png"
+        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
+        plt.close(fig)
+        created.append(filename)
     return created
 
 
@@ -549,8 +752,19 @@ def write_html_report(
         f"<p>{html.escape(row['reference'])}</p></article>".replace(",", " ")
         for row in overview
     )
+    chart_titles = {
+        "dataset_sizes.png": "Обсяг масивів",
+        "dataset_sizes_by_description.png": "Склад масивів за описами",
+        "chronology.png": "Хронологія масивів",
+        "chronology_by_description.png": "Окремий хронологічний ряд для кожного опису",
+        "classification_coverage.png": "Частки станів класифікації у кожному масиві",
+        "classification_by_description.png": "Класифікація справ за описами",
+        "categories.png": "Частки тематичних категорій у кожному масиві",
+        "categories_by_description.png": "Тематичні категорії за описами",
+    }
     charts = "".join(
-        f"<figure><img src='figures/{html.escape(filename)}' alt='Графік'><figcaption>{html.escape(filename)}</figcaption></figure>"
+        f"<figure><img src='figures/{html.escape(filename)}' alt='{html.escape(chart_titles.get(filename, filename))}'>"
+        f"<figcaption>{html.escape(chart_titles.get(filename, filename))}</figcaption></figure>"
         for filename in chart_files
     )
     top_vocabulary = [row for row in analysis["vocabulary"] if row["type"] == "Характерна" and row["rank"] <= 15]
@@ -568,7 +782,7 @@ figure{{margin:20px 0;background:white;border:1px solid var(--line);padding:14px
 .note{{background:#fff8e1;border-left:4px solid #d17a22;padding:12px 16px}} footer{{margin-top:48px;color:var(--muted);font-size:13px}}
 </style></head><body><main>
 <h1>Порівняння архівних описів</h1>
-<p class="lead">Одиниця порівняння — логічний масив, представлений одним файлом Excel. Усі аркуші книги об'єднано у підсумках і графіках, а їхні архівні реквізити збережено на рівні окремих описів.</p>
+<p class="lead">Одиниця порівняння — логічний масив, представлений одним файлом Excel. У підсумках порівнюються книги, а додаткові графіки показують окремо всі аркуші-описи, з яких складається кожен масив.</p>
 <section class="cards">{cards}</section>
 <p class="note">Журнал перевірки: помилок — {issue_counts['ERROR']}, попереджень — {issue_counts['WARNING']}, інформаційних повідомлень — {issue_counts['INFO']}.</p>
 <h2>Основні показники</h2>
@@ -576,6 +790,9 @@ figure{{margin:20px 0;background:white;border:1px solid var(--line);padding:14px
 <h2>Покриття тематичною класифікацією</h2>
 <p class="lead">За 100% взято всі аналізовані справи кожного логічного масиву окремо.</p>
 {_html_table([('dataset','Масив'),('analyzable_titles','Усього справ (100%)'),('subject_classified','Тематично класифіковано'),('subject_classified_percent','Класифіковано, %'),('context_only','Лише контекст'),('context_only_percent','Лише контекст, %'),('unclassified','Не класифіковано'),('unclassified_percent','Не класифіковано, %')], analysis['classification_coverage'])}
+<h2>Склад масивів за описами</h2>
+{_html_table([('dataset','Масив'),('reference','Архівний опис'),('analyzable_titles','Справ в аналізі'),('classified_titles','Тематично класифіковано'),('withdrawn','Вибулих')], analysis['descriptions'])}
+<p class="lead">Графіки за описами показують абсолютні кількості; таблиці «Категорії описів» і «Класифікація описів» у comparison.xlsx та CSV також містять частки з явно вказаними знаменниками.</p>
 <h2>Візуалізації</h2>{charts}
 <h2>Характерна лексика</h2>
 {_html_table([('dataset','Масив'),('rank','Місце'),('term','Термін'),('titles','Заголовків'),('percent_of_titles','Частка, %')], top_vocabulary)}
