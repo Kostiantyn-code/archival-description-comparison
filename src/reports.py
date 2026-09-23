@@ -448,7 +448,7 @@ def _description_colors(descriptions: list[Description]) -> dict[tuple[str, str]
 def _stacked_description_bars(
     ax, labels: list[str], descriptions: list[Description],
     values: dict[tuple[str, str], list[int]], colors: dict[tuple[str, str], str],
-    total_label: str = "Усього",
+    total_label: str = "Усього", *, horizontal: bool = True,
 ) -> None:
     from matplotlib.colors import to_rgb
 
@@ -462,12 +462,13 @@ def _stacked_description_bars(
         key = (item.dataset_id, item.sheet_name)
         segment = values[key]
         color = colors[key]
-        bars = ax.barh(labels, segment, left=offsets, color=color,
-                       label=item.reference, edgecolor="white", linewidth=0.25)
+        style = {"color": color, "label": item.reference, "edgecolor": "white", "linewidth": 0.25}
+        bars = (ax.barh(labels, segment, left=offsets, **style) if horizontal
+                else ax.bar(labels, segment, bottom=offsets, **style))
         visible = [
             f"{value:,}".replace(",", " ")
             if value >= 10 and value / max(total, 1) >= 0.025
-            and value / max(maximum, 1) >= 0.018 else ""
+            and value / max(maximum, 1) >= (0.018 if horizontal else 0.035) else ""
             for value, total in zip(segment, totals)
         ]
         red, green, blue = to_rgb(color)
@@ -476,12 +477,19 @@ def _stacked_description_bars(
         offsets = [left + value for left, value in zip(offsets, segment)]
     for index, total in enumerate(totals):
         if total:
-            ax.text(total + max(maximum * 0.012, 0.5), index,
-                    f"{total_label}: {total:,}".replace(",", " "),
-                    va="center", fontsize=8)
-    ax.set_xlim(0, maximum * 1.24 if maximum else 1)
-    ax.invert_yaxis()
-    ax.grid(axis="x", alpha=0.22)
+            content = f"{total_label}: {total:,}".replace(",", " ")
+            if horizontal:
+                ax.text(total + max(maximum * 0.012, 0.5), index,
+                        content, va="center", fontsize=8)
+            else:
+                ax.text(index, total + max(maximum * 0.012, 0.5),
+                        content, ha="center", fontsize=8)
+    if horizontal:
+        ax.set_xlim(0, maximum * 1.24 if maximum else 1)
+        ax.invert_yaxis()
+    else:
+        ax.set_ylim(0, maximum * 1.15 if maximum else 1)
+    ax.grid(axis="x" if horizontal else "y", alpha=0.22)
     ax.set_axisbelow(True)
     ax.legend(title="Архівний опис", frameon=False, fontsize=8,
               loc="lower center", bbox_to_anchor=(0.5, 1.02),
@@ -503,25 +511,11 @@ def create_charts(
     plt.rcParams.update({"font.family": "DejaVu Sans", "axes.titlesize": 13, "axes.labelsize": 10})
     palette = ["#2F6690", "#D17A22", "#548C2F", "#805D93", "#A23B72", "#2A9D8F"]
     created: list[str] = []
+    colors = _description_colors(descriptions)
 
     overview = analysis["overview"]
     labels = [row["short_label"] for row in overview]
-    values = [row["analyzable_titles"] for row in overview]
-    fig, ax = plt.subplots(figsize=(9.5, max(4.5, len(labels) * 0.8 + 2)))
-    bars = ax.barh(labels, values, color=palette[:len(labels)])
-    ax.bar_label(bars, labels=[f"{value:,}".replace(",", " ") for value in values], padding=4)
-    ax.set_title("Обсяг порівнюваних масивів")
-    ax.set_xlabel("Кількість заголовків справ")
-    ax.grid(axis="x", alpha=0.22)
-    ax.set_axisbelow(True)
-    fig.tight_layout()
-    filename = "dataset_sizes.png"
-    fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
-    plt.close(fig)
-    created.append(filename)
-
     if descriptions:
-        colors = _description_colors(descriptions)
         description_sizes = {
             (row["dataset_id"], row["sheet_name"]): row["analyzable_titles"]
             for row in analysis["descriptions"]
@@ -534,10 +528,10 @@ def create_charts(
                 for dataset in datasets
             ] for item in descriptions}, colors,
         )
-        ax.set_title("Склад порівнюваних масивів за описами", pad=75)
+        ax.set_title("Обсяг порівнюваних масивів за описами", pad=75)
         ax.set_xlabel("Кількість заголовків справ")
         fig.tight_layout()
-        filename = "dataset_sizes_by_description.png"
+        filename = "dataset_sizes.png"
         fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
         plt.close(fig)
         created.append(filename)
@@ -595,57 +589,13 @@ def create_charts(
         plt.close(fig)
         created.append(filename)
 
-    coverage = analysis["classification_coverage"]
-    if coverage:
-        fig, ax = plt.subplots(figsize=(10.5, max(4.6, len(coverage) * 0.9 + 2.2)))
-        coverage_labels = [row["short_label"] for row in coverage]
-        states = [
-            ("subject_classified_percent", "Тематично класифіковано", "#2F6690"),
-            ("context_only_percent", "Лише контекст", "#D9A441"),
-            ("unclassified_percent", "Не класифіковано", "#A9B2BA"),
-        ]
-        left = [0.0] * len(coverage)
-        for key, label, color in states:
-            values = [row[key] for row in coverage]
-            bars = ax.barh(coverage_labels, values, left=left, label=label, color=color)
-            segment_labels = [
-                f"{value:.1f}%\n({row_key:,})".replace(",", " ")
-                if value >= 6 else (f"{value:.1f}%" if value >= 2 else "")
-                for value, row_key in zip(values, [
-                    row["subject_classified"] if key == "subject_classified_percent"
-                    else row["context_only"] if key == "context_only_percent"
-                    else row["unclassified"]
-                    for row in coverage
-                ])
-            ]
-            ax.bar_label(
-                bars,
-                labels=segment_labels,
-                label_type="center",
-                fontsize=8,
-                color="white" if key == "subject_classified_percent" else f"#{TEXT}",
-            )
-            left = [current + value for current, value in zip(left, values)]
-        ax.set_xlim(0, 100)
-        ax.invert_yaxis()
-        ax.set_title("Покриття тематичною класифікацією")
-        ax.set_xlabel("Частка справ у відповідному масиві, %")
-        ax.grid(axis="x", alpha=0.22)
-        ax.set_axisbelow(True)
-        ax.legend(frameon=False, loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=3)
-        fig.tight_layout()
-        filename = "classification_coverage.png"
-        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
-        plt.close(fig)
-        created.append(filename)
-
     by_description = {
         (row["dataset_id"], row["sheet_name"]): row
         for row in analysis["classification_by_description"]
     }
     if by_description:
         fig, axes = plt.subplots(len(datasets), 1,
-                                 figsize=(12.5, max(5.5, 4.7 * len(datasets))), squeeze=False)
+                                 figsize=(11.5, max(5.5, 5.2 * len(datasets))), squeeze=False)
         states = [("subject_classified", "Тематично класифіковано"),
                   ("context_only", "Лише контекст"),
                   ("unclassified", "Не класифіковано")]
@@ -656,37 +606,16 @@ def create_charts(
                 ax, [label for _, label in states], subset,
                 {(item.dataset_id, item.sheet_name): [
                     by_description[(item.dataset_id, item.sheet_name)][key] for key, _ in states
-                ] for item in subset}, colors,
+                ] for item in subset}, colors, horizontal=False,
             )
             ax.set_title(dataset.short_label, loc="left")
-            ax.set_xlabel("Кількість справ")
-        fig.suptitle("Класифікація справ за окремими описами", fontsize=13)
+            ax.set_ylabel("Кількість справ")
+        fig.suptitle("Покриття класифікацією за окремими описами", fontsize=13)
         fig.tight_layout()
-        filename = "classification_by_description.png"
+        filename = "classification_coverage.png"
         fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
         plt.close(fig)
         created.append(filename)
-
-    lookup = {(row["dataset_id"], row["category_id"]): row for row in analysis["categories"]}
-    fig, ax = plt.subplots(figsize=(11, 7))
-    y_positions = list(range(len(categories)))
-    group_height = 0.8
-    width = group_height / max(len(datasets), 1)
-    for index, dataset in enumerate(datasets):
-        values = [lookup[(dataset.id, category.id)]["percent_of_titles"] for category in categories]
-        offsets = [position - group_height / 2 + width / 2 + index * width for position in y_positions]
-        ax.barh(offsets, values, height=width * 0.9, label=dataset.short_label, color=palette[index % len(palette)])
-    ax.set_yticks(y_positions, [category.label for category in categories])
-    ax.invert_yaxis()
-    ax.set_title("Тематична структура заголовків")
-    ax.set_xlabel("Частка від усіх справ відповідного масиву, %")
-    ax.grid(axis="x", alpha=0.22)
-    ax.legend(frameon=False)
-    fig.tight_layout()
-    filename = "categories.png"
-    fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
-    plt.close(fig)
-    created.append(filename)
 
     category_parts = {
         (row["dataset_id"], row["sheet_name"], row["category_id"]): row["cases"]
@@ -709,7 +638,7 @@ def create_charts(
             ax.set_xlabel("Кількість присвоєнь категорії")
         fig.suptitle("Тематичні категорії за окремими описами", fontsize=13)
         fig.tight_layout()
-        filename = "categories_by_description.png"
+        filename = "categories.png"
         fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
         plt.close(fig)
         created.append(filename)
@@ -753,14 +682,11 @@ def write_html_report(
         for row in overview
     )
     chart_titles = {
-        "dataset_sizes.png": "Обсяг масивів",
-        "dataset_sizes_by_description.png": "Склад масивів за описами",
+        "dataset_sizes.png": "Обсяг масивів: склад кожного стовпчика за описами",
         "chronology.png": "Хронологія масивів",
         "chronology_by_description.png": "Окремий хронологічний ряд для кожного опису",
-        "classification_coverage.png": "Частки станів класифікації у кожному масиві",
-        "classification_by_description.png": "Класифікація справ за описами",
-        "categories.png": "Частки тематичних категорій у кожному масиві",
-        "categories_by_description.png": "Тематичні категорії за описами",
+        "classification_coverage.png": "Стан класифікації: стовпчики зі справ окремих описів",
+        "categories.png": "Тематичні категорії: стовпчики зі справ окремих описів",
     }
     charts = "".join(
         f"<figure><img src='figures/{html.escape(filename)}' alt='{html.escape(chart_titles.get(filename, filename))}'>"
@@ -782,7 +708,7 @@ figure{{margin:20px 0;background:white;border:1px solid var(--line);padding:14px
 .note{{background:#fff8e1;border-left:4px solid #d17a22;padding:12px 16px}} footer{{margin-top:48px;color:var(--muted);font-size:13px}}
 </style></head><body><main>
 <h1>Порівняння архівних описів</h1>
-<p class="lead">Одиниця порівняння — логічний масив, представлений одним файлом Excel. У підсумках порівнюються книги, а додаткові графіки показують окремо всі аркуші-описи, з яких складається кожен масив.</p>
+<p class="lead">Одиниця порівняння — логічний масив, представлений одним файлом Excel. На стовпчикових діаграмах кожен стовпчик складено із сегментів відповідних аркушів-описів. Річна хронологія подана як за книгами, так і окремим рядом для кожного опису.</p>
 <section class="cards">{cards}</section>
 <p class="note">Журнал перевірки: помилок — {issue_counts['ERROR']}, попереджень — {issue_counts['WARNING']}, інформаційних повідомлень — {issue_counts['INFO']}.</p>
 <h2>Основні показники</h2>
@@ -792,7 +718,7 @@ figure{{margin:20px 0;background:white;border:1px solid var(--line);padding:14px
 {_html_table([('dataset','Масив'),('analyzable_titles','Усього справ (100%)'),('subject_classified','Тематично класифіковано'),('subject_classified_percent','Класифіковано, %'),('context_only','Лише контекст'),('context_only_percent','Лише контекст, %'),('unclassified','Не класифіковано'),('unclassified_percent','Не класифіковано, %')], analysis['classification_coverage'])}
 <h2>Склад масивів за описами</h2>
 {_html_table([('dataset','Масив'),('reference','Архівний опис'),('analyzable_titles','Справ в аналізі'),('classified_titles','Тематично класифіковано'),('withdrawn','Вибулих')], analysis['descriptions'])}
-<p class="lead">Графіки за описами показують абсолютні кількості; таблиці «Категорії описів» і «Класифікація описів» у comparison.xlsx та CSV також містять частки з явно вказаними знаменниками.</p>
+<p class="lead">Сегменти стовпчиків показують абсолютні кількості. Частки зі знаменниками відповідного опису та масиву наведено в таблицях «Категорії описів» і «Класифікація описів» у comparison.xlsx та CSV.</p>
 <h2>Візуалізації</h2>{charts}
 <h2>Характерна лексика</h2>
 {_html_table([('dataset','Масив'),('rank','Місце'),('term','Термін'),('titles','Заголовків'),('percent_of_titles','Частка, %')], top_vocabulary)}

@@ -29,7 +29,7 @@ Workbook summaries, comparative charts, and vocabulary aggregate all sheets.
 - any number of `.xlsx` workbooks, with a minimum of two;
 - multi-sheet workbook aggregation;
 - chronology and dataset-size comparisons, plus a separate series per worksheet;
-- description-level breakdowns of dataset size, classification, and categories;
+- stacked bars split by description for dataset size, classification, and categories;
 - dictionary-based Ukrainian and Russian title classification;
 - separate coverage and unclassified-title reports;
 - frequent, distinctive, and shared vocabulary;
@@ -94,7 +94,8 @@ methodological notes.
 The `*_by_description.csv` files and matching sheets in `comparison.xlsx`
 provide annual counts, classification states, and thematic categories per
 worksheet. Category tables give both the worksheet and workbook denominators.
-Stacked description charts show absolute counts; existing workbook charts remain.
+The main bar charts show absolute counts with each bar stacked from its descriptions;
+the aggregate and description-level chronology remain separate plots.
 
 ## Testing
 
