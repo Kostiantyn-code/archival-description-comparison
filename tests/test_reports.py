@@ -6,11 +6,60 @@ import unittest
 from pathlib import Path
 
 from src import __version__
-from src.models import Dataset, Description
-from src.reports import _stacked_description_bars, write_manifest
+from src.models import Category, Dataset, Description
+from src.reports import (
+    _description_chronology_panel, _description_colors, _fond_summary,
+    _grouped_category_bars, _stacked_description_bars, write_manifest,
+)
 
 
 class ReportTests(unittest.TestCase):
+    def test_compared_fonds_are_adjacent_and_inventories_stack(self):
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        left = Dataset("left", "Фонд 230", "ДАМО-ЦДІАК", "", Path("left.xlsx"))
+        right = Dataset("right", "Фонд 533", "ЦДІАК", "", Path("right.xlsx"))
+        items = [
+            Description("left", "left.xlsx", "Опис 2", "ДАМО", "230", "2", "uk", 5, ""),
+            Description("left", "left.xlsx", "Опис 3", "ДАМО", "230", "3", "uk", 5, ""),
+            Description("left", "left.xlsx", "Опис 1", "ЦДІАК", "356", "1", "uk", 5, ""),
+            Description("right", "right.xlsx", "Опис 5", "ЦДІАК", "533", "5", "uk", 5, ""),
+        ]
+        category = Category("culture", "Культура", "culture", 1, [], [], [], [], [], [], [], [])
+        counts = {("left", "Опис 2", "culture"): 6,
+                  ("left", "Опис 3", "culture"): 3,
+                  ("left", "Опис 1", "culture"): 1,
+                  ("right", "Опис 5", "culture"): 4}
+        colors = _description_colors(items)
+        self.assertNotEqual(colors[("left", "Опис 2")], colors[("left", "Опис 3")])
+        self.assertNotEqual(colors[("left", "Опис 1")], colors[("left", "Опис 2")])
+        self.assertIn("Фонд 230: Описи 2, 3", _fond_summary(items[:3]))
+        self.assertIn("Фонд 356: Опис 1", _fond_summary(items[:3]))
+
+        fig, ax = plt.subplots()
+        _grouped_category_bars(ax, [left, right], items, [category], counts, colors,
+                               {"left": 20, "right": 8})
+        segments = [container.patches[0] for container in ax.containers]
+        self.assertEqual([segment.get_y() for segment in segments[:3]],
+                         [segments[0].get_y()] * 3)
+        self.assertEqual(segments[1].get_x(), 30)
+        self.assertEqual(segments[2].get_x(), 45)
+        self.assertEqual(segments[3].get_x(), 0)
+        self.assertNotEqual(segments[0].get_y(), segments[3].get_y())
+        self.assertEqual(sum(segment.get_width() for segment in segments[:3]), 50)
+        self.assertEqual(segments[3].get_width(), 50)  # 4/8 equals 10/20.
+        plt.close(fig)
+
+        fig, ax = plt.subplots()
+        yearly = {(item.dataset_id, item.sheet_name, year): count
+                  for item, count in zip(items, (6, 3, 1, 4)) for year in (1850, 1851)}
+        _description_chronology_panel(ax, left, items, [1850, 1851], yearly, colors)
+        self.assertEqual(len(ax.lines), 3)
+        self.assertEqual([line.get_ydata()[0] for line in ax.lines], [6, 3, 1])
+        plt.close(fig)
+
     def test_description_segments_share_one_bar_in_both_orientations(self):
         import matplotlib
         matplotlib.use("Agg")
