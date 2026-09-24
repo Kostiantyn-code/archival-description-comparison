@@ -62,20 +62,29 @@ class ReportTests(unittest.TestCase):
         fig, ax = plt.subplots()
         yearly = {(item.dataset_id, item.sheet_name, year): count
         for item, count in zip(items, (6, 3, 1, 2, 2)) for year in (1850, 1851)}
-        _description_chronology_panel(ax, left, items, [1850, 1851], yearly, colors)
+        _description_chronology_panel(ax, left, items, [1850, 1851], yearly, colors, 20)
         self.assertEqual(len(ax.lines), 3)
-        self.assertEqual([line.get_ydata()[0] for line in ax.lines], [6, 3, 1])
+        self.assertEqual([line.get_ydata()[0] for line in ax.lines], [30, 15, 5])
+        self.assertIn("100%: 20 справ", ax.get_title(loc="left"))
+        self.assertEqual(ax.get_ylabel(), "Частка справ файла, %")
+        plt.close(fig)
+
+        fig, ax = plt.subplots()
+        _description_chronology_panel(ax, right, items, [1850, 1851], yearly, colors, 8)
+        self.assertEqual([line.get_ydata()[0] for line in ax.lines], [25, 25])
         plt.close(fig)
 
         fig, ax = plt.subplots()
         uneven = {(item.dataset_id, item.sheet_name, year): count
                   for item, count in zip(items[:3], (713, 14, 60))
                   for year in (1850, 1851)}
-        _description_chronology_panel(ax, left, items, [1850, 1851], uneven, colors)
-        self.assertEqual([line.get_ydata()[0] for line in ax.lines], [713, 14, 60])
+        _description_chronology_panel(ax, left, items, [1850, 1851], uneven, colors, 1000)
+        self.assertEqual([round(float(line.get_ydata()[0]), 2) for line in ax.lines],
+                         [71.3, 1.4, 6])
         self.assertEqual(len(ax.child_axes), 1)
         zoom = ax.child_axes[0]
-        self.assertEqual([line.get_ydata()[0] for line in zoom.lines], [14, 60])
+        self.assertEqual([round(float(line.get_ydata()[0]), 2) for line in zoom.lines],
+                         [1.4, 6])
         self.assertEqual([line.get_color() for line in zoom.lines],
                          [colors[("left", "Опис 3")], colors[("left", "Опис 1")]])
         plt.close(fig)
