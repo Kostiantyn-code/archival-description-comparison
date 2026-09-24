@@ -46,7 +46,11 @@ Workbook summaries, comparative charts, and vocabulary aggregate all sheets.
 Python 3.10 or newer is required.
 
 On Windows, place at least two workbooks in `input` and double-click
-`run.bat`. On Linux or macOS:
+`run.bat`. On its first launch it installs dependencies into
+`%LOCALAPPDATA%\archival-description-comparison\venv`. Later launches reuse
+that environment, including from another extracted ZIP; changes to
+`requirements.txt` trigger an update. An existing `.venv` beside `run.bat`
+takes precedence. On Linux or macOS:
 
 ```bash
 chmod +x run.sh
