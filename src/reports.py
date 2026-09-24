@@ -617,50 +617,28 @@ def _category_figure(
 def _description_chronology_panel(
     ax, dataset: Dataset, descriptions: list[Description], years: list[int],
     yearly: dict[tuple[str, str, int], int], colors: dict[tuple[str, str], str],
-    dataset_total: int,
+    description_totals: dict[tuple[str, str], int],
 ) -> None:
-    from matplotlib.ticker import MaxNLocator, PercentFormatter
+    from matplotlib.ticker import PercentFormatter
 
     subset = [item for item in descriptions if item.dataset_id == dataset.id]
-    series = [
-        [yearly[(item.dataset_id, item.sheet_name, year)] / max(dataset_total, 1) * 100
-         for year in years]
-        for item in subset
-    ]
-    for item, values in zip(subset, series):
+    for item in subset:
+        key = (item.dataset_id, item.sheet_name)
+        total = description_totals[key]
+        values = [yearly[(item.dataset_id, item.sheet_name, year)] / max(total, 1) * 100
+                  for year in years]
         ax.plot(years, values,
-                color=colors[(item.dataset_id, item.sheet_name)], linewidth=1.7,
+                color=colors[key], linewidth=1.7,
                 label=_description_label(item))
-    total_label = f"{dataset_total:,}".replace(",", " ")
-    ax.set_title(f"{dataset.short_label} — 100%: {total_label} справ", loc="left", fontsize=10)
-    ax.set_ylabel("Частка справ файла, %")
+    ax.set_title(f"{dataset.short_label} — 100% для кожного опису окремо",
+                 loc="left", fontsize=10)
+    ax.set_ylabel("Частка справ опису, %")
+    ax.set_ylim(0, 100)
     ax.yaxis.set_major_formatter(PercentFormatter(xmax=100))
     ax.grid(alpha=0.22)
     ax.legend(title=_fond_summary(subset), fontsize=8, title_fontsize=8,
               frameon=False, loc="lower center", bbox_to_anchor=(0.5, 1.13),
               ncol=min(len(subset), 3))
-    if len(series) > 1 and years:
-        peaks = [max(values, default=0) for values in series]
-        dominant = max(range(len(peaks)), key=peaks.__getitem__)
-        smaller_peak = max((peak for index, peak in enumerate(peaks) if index != dominant), default=0)
-        if smaller_peak and peaks[dominant] > 5 * smaller_peak:
-            zoom = ax.inset_axes((0.035, 0.54, 0.37, 0.32))
-            active_years = []
-            for index, (item, values) in enumerate(zip(subset, series)):
-                if index != dominant:
-                    zoom.plot(years, values,
-                              color=colors[(item.dataset_id, item.sheet_name)], linewidth=1.5)
-                    active_years.extend(year for year, value in zip(years, values) if value)
-            zoom.set_ylim(0, smaller_peak * 1.13)
-            start, end = min(active_years), max(active_years)
-            margin = max(1, (end - start) * 0.06)
-            zoom.set_xlim(start - margin, end + margin)
-            zoom.set_title("Інші описи — збільшена шкала, %", fontsize=8)
-            zoom.xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True))
-            zoom.yaxis.set_major_formatter(PercentFormatter(xmax=100))
-            zoom.tick_params(labelsize=7)
-            zoom.grid(alpha=0.18)
-            zoom.set_facecolor("white")
 
 
 def create_charts(
@@ -733,7 +711,10 @@ def create_charts(
 
     chronology_parts = analysis["chronology_by_description"]
     if chronology_parts:
-        dataset_totals = {row["dataset_id"]: row["analyzable_titles"] for row in overview}
+        description_totals = {
+            (row["dataset_id"], row["sheet_name"]): row["analyzable_titles"]
+            for row in analysis["descriptions"]
+        }
         fig, axes = plt.subplots(
             len(datasets), 1, figsize=(12, max(5.2, 3.7 * len(datasets))),
             sharex=True, squeeze=False,
@@ -744,7 +725,7 @@ def create_charts(
         for index, dataset in enumerate(datasets):
             _description_chronology_panel(
                 axes[index][0], dataset, descriptions, years, yearly, colors,
-                dataset_totals[dataset.id],
+                description_totals,
             )
         axes[-1][0].set_xlabel("Рік")
         fig.suptitle("Хронологія описів у кожному порівнюваному масиві", fontsize=13, y=1.04)
@@ -836,7 +817,7 @@ def write_html_report(
     chart_titles = {
         "dataset_sizes.png": "Обсяг масивів: склад кожного стовпчика за описами",
         "chronology.png": "Хронологія масивів",
-        "chronology_by_description.png": "Річні частки описів від справ файла, %: накладені ряди",
+        "chronology_by_description.png": "Річні частки справ кожного опису, %: накладені ряди",
         "classification_coverage.png": "Стан класифікації: стовпчики зі справ окремих описів",
         "categories.png": "Тематичні категорії: сусідні панелі фондів і спільна легенда",
     }

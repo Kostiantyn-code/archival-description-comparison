@@ -34,8 +34,8 @@ Workbook summaries, comparative charts, and vocabulary aggregate all sheets.
   scale, with descriptions stacked inside each bar and one grouped legend entry
   per workbook; each bar uses that workbook's analyzable titles as its denominator;
 - description chronology overlays all inventories of a workbook in one panel;
-  each yearly value is a percentage of all analyzable cases in that workbook,
-  including in the inset for smaller series;
+  each yearly value is a percentage of all analyzable cases in that particular
+  inventory, on a shared 0–100% scale;
 - dictionary-based Ukrainian and Russian title classification;
 - separate coverage and unclassified-title reports;
 - frequent, distinctive, and shared vocabulary;

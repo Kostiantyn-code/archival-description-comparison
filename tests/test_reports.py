@@ -62,31 +62,44 @@ class ReportTests(unittest.TestCase):
         fig, ax = plt.subplots()
         yearly = {(item.dataset_id, item.sheet_name, year): count
         for item, count in zip(items, (6, 3, 1, 2, 2)) for year in (1850, 1851)}
-        _description_chronology_panel(ax, left, items, [1850, 1851], yearly, colors, 20)
+        description_totals = {("left", "Опис 2"): 12,
+                              ("left", "Опис 3"): 6,
+                              ("left", "Опис 1"): 4,
+                              ("right", "Опис 1"): 4,
+                              ("right", "Опис 2"): 8}
+        _description_chronology_panel(
+            ax, left, items, [1850, 1851], yearly, colors, description_totals
+        )
         self.assertEqual(len(ax.lines), 3)
-        self.assertEqual([line.get_ydata()[0] for line in ax.lines], [30, 15, 5])
-        self.assertIn("100%: 20 справ", ax.get_title(loc="left"))
-        self.assertEqual(ax.get_ylabel(), "Частка справ файла, %")
+        self.assertEqual([line.get_ydata()[0] for line in ax.lines], [50, 50, 25])
+        self.assertIn("100% для кожного опису окремо", ax.get_title(loc="left"))
+        self.assertEqual(ax.get_ylabel(), "Частка справ опису, %")
+        self.assertEqual(ax.get_ylim(), (0, 100))
+        self.assertEqual(len(ax.child_axes), 0)
         plt.close(fig)
 
         fig, ax = plt.subplots()
-        _description_chronology_panel(ax, right, items, [1850, 1851], yearly, colors, 8)
-        self.assertEqual([line.get_ydata()[0] for line in ax.lines], [25, 25])
+        _description_chronology_panel(
+            ax, right, items, [1850, 1851], yearly, colors, description_totals
+        )
+        self.assertEqual([line.get_ydata()[0] for line in ax.lines], [50, 25])
         plt.close(fig)
 
         fig, ax = plt.subplots()
         uneven = {(item.dataset_id, item.sheet_name, year): count
                   for item, count in zip(items[:3], (713, 14, 60))
                   for year in (1850, 1851)}
-        _description_chronology_panel(ax, left, items, [1850, 1851], uneven, colors, 1000)
+        uneven_totals = {("left", "Опис 2"): 1200,
+                         ("left", "Опис 3"): 20,
+                         ("left", "Опис 1"): 120}
+        _description_chronology_panel(
+            ax, left, items, [1850, 1851], uneven, colors, uneven_totals
+        )
         self.assertEqual([round(float(line.get_ydata()[0]), 2) for line in ax.lines],
-                         [71.3, 1.4, 6])
-        self.assertEqual(len(ax.child_axes), 1)
-        zoom = ax.child_axes[0]
-        self.assertEqual([round(float(line.get_ydata()[0]), 2) for line in zoom.lines],
-                         [1.4, 6])
-        self.assertEqual([line.get_color() for line in zoom.lines],
-                         [colors[("left", "Опис 3")], colors[("left", "Опис 1")]])
+                         [59.42, 70, 50])
+        self.assertEqual(len(ax.child_axes), 0)
+        self.assertEqual([line.get_color() for line in ax.lines],
+                         [colors[(item.dataset_id, item.sheet_name)] for item in items[:3]])
         plt.close(fig)
 
     def test_description_segments_share_one_bar_in_both_orientations(self):
