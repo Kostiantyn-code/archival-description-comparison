@@ -30,9 +30,9 @@ Workbook summaries, comparative charts, and vocabulary aggregate all sheets.
 - multi-sheet workbook aggregation;
 - chronology and dataset-size comparisons, plus a separate series per worksheet;
 - stacked bars split by description for dataset size, classification, and categories;
-- category bars for compared workbooks sit side by side, with descriptions
-  stacked inside each bar and separate color families for fonds in one workbook;
-  each bar uses that workbook's analyzable titles as its percentage denominator;
+- category panels for compared workbooks sit side by side on a common percentage
+  scale, with descriptions stacked inside each bar and one grouped legend entry
+  per workbook; each bar uses that workbook's analyzable titles as its denominator;
 - description chronology overlays all inventories of a workbook in one panel;
 - dictionary-based Ukrainian and Russian title classification;
 - separate coverage and unclassified-title reports;

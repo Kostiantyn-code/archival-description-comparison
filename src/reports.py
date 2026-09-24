@@ -516,78 +516,102 @@ def _stacked_description_bars(
               ncol=min(len(descriptions), 3))
 
 
-def _grouped_category_bars(
-    ax, datasets: list[Dataset], descriptions: list[Description],
+def _category_dataset_label(dataset: Dataset, descriptions: list[Description]) -> str:
+    """One legend entry per workbook, listing all its fonds and inventories."""
+    groups: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for item in descriptions:
+        groups[(item.archive.strip(), item.fond.strip())].append(item.inventory or item.sheet_name)
+    return "\n".join(
+        f"{archive + ', ' if archive else ''}ф. {fond}, оп. {', '.join(dict.fromkeys(numbers))}"
+        if fond else f"{archive or dataset.short_label}, оп. {', '.join(dict.fromkeys(numbers))}"
+        for (archive, fond), numbers in groups.items()
+    ) or dataset.short_label
+
+
+def _category_panel(
+    ax, descriptions: list[Description],
     categories: list[Category], counts: dict[tuple[str, str, str], int],
-    colors: dict[tuple[str, str], str], dataset_totals: dict[str, int],
+    colors: dict[tuple[str, str], str], dataset_total: int, maximum: float,
 ) -> None:
-    """Compare workbook shares side by side, stacking inventories within each bar."""
+    """Stack inventory shares in one bar per category for one workbook."""
     from matplotlib.colors import to_rgb
 
-    gap = len(datasets) + 0.9
-    positions = {
-        (dataset.id, category.id): category_index * gap + dataset_index
-        for category_index, category in enumerate(categories)
-        for dataset_index, dataset in enumerate(datasets)
-    }
+    offsets = [0.0] * len(categories)
+    case_totals = [0] * len(categories)
+    for item in descriptions:
+        key = (item.dataset_id, item.sheet_name)
+        case_values = [counts[(item.dataset_id, item.sheet_name, category.id)] for category in categories]
+        values = [count / max(dataset_total, 1) * 100 for count in case_values]
+        bars = ax.barh(range(len(categories)), values, left=offsets,
+                       height=0.72, color=colors[key],
+                       edgecolor="white", linewidth=0.25)
+        red, green, blue = to_rgb(colors[key])
+        label_color = "white" if 0.2126 * red + 0.7152 * green + 0.0722 * blue < 0.55 else "#202020"
+        segment_labels = []
+        for index, (value, cases) in enumerate(zip(values, case_values)):
+            segment_labels.append(
+                f"{value:.1f}%" if value >= 2.5 and value / max(maximum, 1) >= 0.06 else ""
+            )
+            offsets[index] += value
+            case_totals[index] += cases
+        ax.bar_label(bars, labels=segment_labels, label_type="center", fontsize=7, color=label_color)
+
+    for index, (total, cases) in enumerate(zip(offsets, case_totals)):
+        if cases:
+            formatted_cases = f"{cases:,}".replace(",", " ")
+            ax.text(total + max(maximum * 0.014, 0.15), index,
+                    f"{total:.1f}% ({formatted_cases})", va="center", fontsize=8)
+    ax.set_yticks(range(len(categories)), [category.label for category in categories])
+    ax.set_xlim(0, maximum * 1.28 if maximum else 1)
+    ax.grid(axis="x", alpha=0.22)
+    ax.set_axisbelow(True)
+
+
+def _category_figure(
+    datasets: list[Dataset], descriptions: list[Description],
+    categories: list[Category], counts: dict[tuple[str, str, str], int],
+    colors: dict[tuple[str, str], str], dataset_totals: dict[str, int],
+):
+    """Adjacent workbook panels share a percentage scale and one grouped legend."""
+    import matplotlib.pyplot as plt
+    from matplotlib.legend_handler import HandlerTuple
+    from matplotlib.patches import Patch
+
+    columns = min(len(datasets), 2)
+    rows = (len(datasets) + columns - 1) // columns
+    fig, axes = plt.subplots(rows, columns, sharex=True, sharey=True, squeeze=False,
+                             figsize=(max(11, 8.4 * columns), max(6.8, 5.4 * rows)))
     maximum = max((
         sum(counts[(item.dataset_id, item.sheet_name, category.id)]
             for item in descriptions if item.dataset_id == dataset.id)
         / max(dataset_totals[dataset.id], 1) * 100
         for dataset in datasets for category in categories
     ), default=0)
-    offsets: dict[tuple[str, str], float] = defaultdict(float)
-    case_totals: dict[tuple[str, str], int] = defaultdict(int)
-    for item in descriptions:
-        key = (item.dataset_id, item.sheet_name)
-        case_values = [counts[(item.dataset_id, item.sheet_name, category.id)] for category in categories]
-        values = [count / max(dataset_totals[item.dataset_id], 1) * 100 for count in case_values]
-        y_values = [positions[(item.dataset_id, category.id)] for category in categories]
-        bars = ax.barh(y_values, values, left=[offsets[(item.dataset_id, category.id)] for category in categories],
-                       height=0.78, color=colors[key], label=_description_label(item),
-                       edgecolor="white", linewidth=0.25)
-        red, green, blue = to_rgb(colors[key])
-        label_color = "white" if 0.2126 * red + 0.7152 * green + 0.0722 * blue < 0.55 else "#202020"
-        segment_labels = []
-        for category, value, cases in zip(categories, values, case_values):
-            segment_labels.append(
-                f"{value:.1f}%" if value >= 2.5 and value / max(maximum, 1) >= 0.04 else ""
-            )
-            offsets[(item.dataset_id, category.id)] += value
-            case_totals[(item.dataset_id, category.id)] += cases
-        ax.bar_label(bars, labels=segment_labels, label_type="center", fontsize=7, color=label_color)
-
-    fund_labels = {
-        dataset.id: ", ".join(dict.fromkeys(
-            f"фонд {item.fond}" if item.fond else dataset.short_label
-            for item in descriptions if item.dataset_id == dataset.id
-        )) for dataset in datasets
-    }
-    for dataset in datasets:
-        for category in categories:
-            total = offsets[(dataset.id, category.id)]
-            cases = case_totals[(dataset.id, category.id)]
-            if cases:
-                formatted_cases = f"{cases:,}".replace(",", " ")
-                ax.text(total + max(maximum * 0.012, 0.15), positions[(dataset.id, category.id)],
-                        f"{fund_labels[dataset.id]}: {total:.1f}% ({formatted_cases})",
-                        va="center", fontsize=8)
-    ax.set_yticks(
-        [index * gap + (len(datasets) - 1) / 2 for index in range(len(categories))],
-        [category.label for category in categories],
-    )
-    ax.set_ylim(-0.7, (len(categories) - 1) * gap + len(datasets) - 0.3)
-    ax.set_xlim(0, maximum * 1.45 if maximum else 1)
-    ax.invert_yaxis()
-    ax.grid(axis="x", alpha=0.22)
-    ax.set_axisbelow(True)
-    summary = "\n".join(
-        f"{dataset.short_label} — {_fond_summary([item for item in descriptions if item.dataset_id == dataset.id])}"
-        for dataset in datasets
-    )
-    ax.legend(title=summary, frameon=False, fontsize=8, title_fontsize=8,
-              loc="lower center", bbox_to_anchor=(0.5, 1.02),
-              ncol=min(len(descriptions), 3))
+    handles = []
+    labels = []
+    for index, dataset in enumerate(datasets):
+        ax = axes.flat[index]
+        subset = [item for item in descriptions if item.dataset_id == dataset.id]
+        _category_panel(ax, subset, categories, counts, colors,
+                        dataset_totals[dataset.id], maximum)
+        ax.set_title(dataset.short_label, loc="left", fontsize=11)
+        if index % columns:
+            ax.tick_params(axis="y", left=False, labelleft=False)
+        handles.append(tuple(Patch(facecolor=colors[(item.dataset_id, item.sheet_name)])
+                             for item in subset) or (Patch(facecolor="#999999"),))
+        labels.append(_category_dataset_label(dataset, subset))
+    for ax in axes.flat[len(datasets):]:
+        ax.set_visible(False)
+    axes[0][0].invert_yaxis()
+    fig.suptitle("Тематичні категорії за описами", fontsize=14, y=0.99)
+    fig.legend(handles, labels, handler_map={tuple: HandlerTuple(ndivide=None, pad=0.05)},
+               loc="upper center", bbox_to_anchor=(0.55, 0.96), ncol=columns,
+               frameon=False, fontsize=9, handlelength=2.2)
+    fig.supxlabel("Частка справ відповідного файлу з категорією, %")
+    fig.subplots_adjust(left=0.23 if columns == 2 else 0.35,
+                        right=0.98, top=0.79, bottom=0.11,
+                        wspace=0.12, hspace=0.33)
+    return fig
 
 
 def _description_chronology_panel(
@@ -729,13 +753,9 @@ def create_charts(
         for row in analysis["categories_by_description"]
     }
     if category_parts:
-        fig, ax = plt.subplots(figsize=(15, max(7.5, 0.8 * len(categories) * len(datasets))))
         dataset_totals = {row["dataset_id"]: row["analyzable_titles"] for row in analysis["overview"]}
-        _grouped_category_bars(ax, datasets, descriptions, categories, category_parts,
+        fig = _category_figure(datasets, descriptions, categories, category_parts,
                                colors, dataset_totals)
-        ax.set_title("Тематичні категорії: фонди поряд, описи всередині стовпчиків", pad=135)
-        ax.set_xlabel("Частка справ відповідного файлу з категорією, %")
-        fig.tight_layout()
         filename = "categories.png"
         fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
         plt.close(fig)
@@ -784,7 +804,7 @@ def write_html_report(
         "chronology.png": "Хронологія масивів",
         "chronology_by_description.png": "Одна панель на книгу: хронологічні ряди описів накладено",
         "classification_coverage.png": "Стан класифікації: стовпчики зі справ окремих описів",
-        "categories.png": "Тематичні категорії: фонди поряд, описи як сегменти",
+        "categories.png": "Тематичні категорії: сусідні панелі фондів і спільна легенда",
     }
     charts = "".join(
         f"<figure><img src='figures/{html.escape(filename)}' alt='{html.escape(chart_titles.get(filename, filename))}'>"
