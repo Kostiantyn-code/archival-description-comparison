@@ -619,8 +619,12 @@ def _description_chronology_panel(
     yearly: dict[tuple[str, str, int], int], colors: dict[tuple[str, str], str],
 ) -> None:
     subset = [item for item in descriptions if item.dataset_id == dataset.id]
-    for item in subset:
-        ax.plot(years, [yearly[(item.dataset_id, item.sheet_name, year)] for year in years],
+    series = [
+        [yearly[(item.dataset_id, item.sheet_name, year)] for year in years]
+        for item in subset
+    ]
+    for item, values in zip(subset, series):
+        ax.plot(years, values,
                 color=colors[(item.dataset_id, item.sheet_name)], linewidth=1.7,
                 label=_description_label(item))
     ax.set_title(dataset.short_label, loc="left", fontsize=10)
@@ -629,6 +633,29 @@ def _description_chronology_panel(
     ax.legend(title=_fond_summary(subset), fontsize=8, title_fontsize=8,
               frameon=False, loc="lower center", bbox_to_anchor=(0.5, 1.02),
               ncol=min(len(subset), 3))
+    if len(series) > 1 and years:
+        peaks = [max(values, default=0) for values in series]
+        dominant = max(range(len(peaks)), key=peaks.__getitem__)
+        smaller_peak = max((peak for index, peak in enumerate(peaks) if index != dominant), default=0)
+        if smaller_peak and peaks[dominant] > 5 * smaller_peak:
+            from matplotlib.ticker import MaxNLocator
+
+            zoom = ax.inset_axes((0.035, 0.54, 0.37, 0.32))
+            active_years = []
+            for index, (item, values) in enumerate(zip(subset, series)):
+                if index != dominant:
+                    zoom.plot(years, values,
+                              color=colors[(item.dataset_id, item.sheet_name)], linewidth=1.5)
+                    active_years.extend(year for year, count in zip(years, values) if count)
+            zoom.set_ylim(0, smaller_peak * 1.13)
+            start, end = min(active_years), max(active_years)
+            margin = max(1, (end - start) * 0.06)
+            zoom.set_xlim(start - margin, end + margin)
+            zoom.set_title("Інші описи — збільшена шкала", fontsize=8)
+            zoom.xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True))
+            zoom.tick_params(labelsize=7)
+            zoom.grid(alpha=0.18)
+            zoom.set_facecolor("white")
 
 
 def create_charts(

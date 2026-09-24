@@ -67,6 +67,19 @@ class ReportTests(unittest.TestCase):
         self.assertEqual([line.get_ydata()[0] for line in ax.lines], [6, 3, 1])
         plt.close(fig)
 
+        fig, ax = plt.subplots()
+        uneven = {(item.dataset_id, item.sheet_name, year): count
+                  for item, count in zip(items[:3], (713, 14, 60))
+                  for year in (1850, 1851)}
+        _description_chronology_panel(ax, left, items, [1850, 1851], uneven, colors)
+        self.assertEqual([line.get_ydata()[0] for line in ax.lines], [713, 14, 60])
+        self.assertEqual(len(ax.child_axes), 1)
+        zoom = ax.child_axes[0]
+        self.assertEqual([line.get_ydata()[0] for line in zoom.lines], [14, 60])
+        self.assertEqual([line.get_color() for line in zoom.lines],
+                         [colors[("left", "Опис 3")], colors[("left", "Опис 1")]])
+        plt.close(fig)
+
     def test_description_segments_share_one_bar_in_both_orientations(self):
         import matplotlib
         matplotlib.use("Agg")
