@@ -201,6 +201,98 @@ def chronology_rows(
     return rows
 
 
+def chronology_by_description_rows(
+    datasets: list[Dataset],
+    descriptions: list[Description],
+    records: list[Record],
+    chronology: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Count yearly presence for each worksheet, using one common year axis."""
+    counts: dict[tuple[str, str], Counter[int]] = {
+        (item.dataset_id, item.sheet_name): Counter() for item in descriptions
+    }
+    for record in records:
+        if record.analyzable:
+            counts[(record.dataset_id, record.sheet_name)].update(_year_values(record, chronology))
+    observed = [year for counter in counts.values() for year in counter]
+    if not observed:
+        return []
+    labels = {dataset.id: dataset.label for dataset in datasets}
+    return [
+        {
+            "dataset_id": item.dataset_id,
+            "dataset": labels[item.dataset_id],
+            "sheet_name": item.sheet_name,
+            "reference": item.reference,
+            "year": year,
+            "cases": counts[(item.dataset_id, item.sheet_name)][year],
+        }
+        for item in descriptions
+        for year in range(min(observed), max(observed) + 1)
+    ]
+
+
+def classification_by_description_rows(
+    datasets: list[Dataset], descriptions: list[Description], records: list[Record]
+) -> list[dict[str, Any]]:
+    labels = {dataset.id: dataset.label for dataset in datasets}
+    rows: list[dict[str, Any]] = []
+    for item in descriptions:
+        active = [
+            record for record in records
+            if record.dataset_id == item.dataset_id
+            and record.sheet_name == item.sheet_name and record.analyzable
+        ]
+        subject = sum(bool(record.categories) for record in active)
+        context = sum(not record.categories and bool(record.context_categories) for record in active)
+        unclassified = len(active) - subject - context
+        rows.append({
+            "dataset_id": item.dataset_id,
+            "dataset": labels[item.dataset_id],
+            "sheet_name": item.sheet_name,
+            "reference": item.reference,
+            "analyzable_titles": len(active),
+            "subject_classified": subject,
+            "context_only": context,
+            "unclassified": unclassified,
+            "subject_classified_percent": round(_safe_percent(subject, len(active)), 2),
+            "context_only_percent": round(_safe_percent(context, len(active)), 2),
+            "unclassified_percent": round(_safe_percent(unclassified, len(active)), 2),
+        })
+    return rows
+
+
+def categories_by_description_rows(
+    datasets: list[Dataset], descriptions: list[Description],
+    records: list[Record], categories: list[Category],
+) -> list[dict[str, Any]]:
+    labels = {dataset.id: dataset.label for dataset in datasets}
+    dataset_totals = Counter(record.dataset_id for record in records if record.analyzable)
+    rows: list[dict[str, Any]] = []
+    for item in descriptions:
+        active = [
+            record for record in records
+            if record.dataset_id == item.dataset_id
+            and record.sheet_name == item.sheet_name and record.analyzable
+        ]
+        counts = Counter(category_id for record in active for category_id in record.categories)
+        for category in categories:
+            rows.append({
+                "dataset_id": item.dataset_id,
+                "dataset": labels[item.dataset_id],
+                "sheet_name": item.sheet_name,
+                "reference": item.reference,
+                "category_id": category.id,
+                "category": category.label,
+                "cases": counts[category.id],
+                "description_titles_total": len(active),
+                "dataset_titles_total": dataset_totals[item.dataset_id],
+                "percent_of_description_titles": round(_safe_percent(counts[category.id], len(active)), 2),
+                "percent_of_dataset_titles": round(_safe_percent(counts[category.id], dataset_totals[item.dataset_id]), 2),
+            })
+    return rows
+
+
 def category_rows(
     datasets: list[Dataset],
     records: list[Record],
@@ -454,7 +546,16 @@ def build_analysis(
         ],
         "descriptions": description_rows(descriptions, records, dataset_by_id),
         "chronology": chronology_rows(datasets, records, config.get("chronology", {})),
+        "chronology_by_description": chronology_by_description_rows(
+            datasets, descriptions, records, config.get("chronology", {})
+        ),
         "categories": category_rows(datasets, records, categories),
+        "categories_by_description": categories_by_description_rows(
+            datasets, descriptions, records, categories
+        ),
+        "classification_by_description": classification_by_description_rows(
+            datasets, descriptions, records
+        ),
         "vocabulary": vocabulary,
         "common_vocabulary": common,
         "similarities": similarity_rows(datasets, records, config.get("similarity", {})),

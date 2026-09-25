@@ -11,7 +11,7 @@ analysis of archival finding aids stored in Excel workbooks. It produces XLSX
 and CSV tables, PNG charts, a JSON run manifest, and a self-contained HTML
 report without sending research data to external services.
 
-Current version: `0.2.0`.
+Development version: `0.3.0.dev0`; latest release: `v0.2.0`.
 
 ## Data model
 
@@ -21,15 +21,21 @@ Current version: `0.2.0`.
 | Worksheet | A separate archival inventory |
 | Workbook | A logical dataset compared with other workbooks |
 
-Worksheets remain distinguishable in control tables, while all worksheets in
-one workbook are aggregated in summaries, charts, thematic shares, and lexical
-analysis.
+Worksheets remain distinguishable in tables and description-level charts.
+Workbook summaries, comparative charts, and vocabulary aggregate all sheets.
 
 ## Features
 
 - any number of `.xlsx` workbooks, with a minimum of two;
 - multi-sheet workbook aggregation;
-- chronology and dataset-size comparisons;
+- chronology and dataset-size comparisons, plus a separate series per worksheet;
+- stacked bars split by description for dataset size, classification, and categories;
+- category panels for compared workbooks sit side by side on a common percentage
+  scale, with descriptions stacked inside each bar and one grouped legend entry
+  per workbook; each bar uses that workbook's analyzable titles as its denominator;
+- description chronology overlays all inventories of a workbook in one panel;
+  each yearly value is a percentage of all analyzable cases in that particular
+  inventory, on a shared 0–100% scale;
 - dictionary-based Ukrainian and Russian title classification;
 - separate coverage and unclassified-title reports;
 - frequent, distinctive, and shared vocabulary;
@@ -42,7 +48,11 @@ analysis.
 Python 3.10 or newer is required.
 
 On Windows, place at least two workbooks in `input` and double-click
-`run.bat`. On Linux or macOS:
+`run.bat`. On its first launch it installs dependencies into
+`%LOCALAPPDATA%\archival-description-comparison\venv`. Later launches reuse
+that environment, including from another extracted ZIP; changes to
+`requirements.txt` trigger an update. An existing `.venv` beside `run.bat`
+takes precedence. On Linux or macOS:
 
 ```bash
 chmod +x run.sh
@@ -90,6 +100,12 @@ Each thematic percentage uses the number of analyzable titles in that dataset
 as its denominator. Because classification is multi-label, category shares may
 sum to more than 100%. See [`docs/methodology.md`](docs/methodology.md) for the
 methodological notes.
+
+The `*_by_description.csv` files and matching sheets in `comparison.xlsx`
+provide annual counts, classification states, and thematic categories per
+worksheet. Category tables give both the worksheet and workbook denominators.
+The main bar charts show absolute counts with each bar stacked from its descriptions;
+the aggregate chronology and workbook panels with overlaid inventories remain separate plots.
 
 ## Testing
 

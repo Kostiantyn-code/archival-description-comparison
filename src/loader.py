@@ -21,9 +21,17 @@ YEAR_HEADING_RE = re.compile(
 )
 WITHDRAWN_RE = re.compile(r"^(?:в\s*и\s*б\s*у\s*л\s*[аио]|в\s*ы\s*б\s*ы\s*л\s*[аои])", re.I)
 INVENTORY_RE = re.compile(
-    r"^(?:архівний опис|архивная опись|недействующая опись|недіючий опис)(?:\s|$|[.,])",
+    r"^(?:(?:архівний опис|архивная опись|недействующая опись|недіючий опис)(?:\s|$|[.,])"
+    r"|(?:опис|опись)\s*[№#]\s*\d+\s+(?:фонду|фонда)\b)",
     re.I,
 )
+PERSONAL_SECTION_RE = re.compile(
+    r"^(?:особов[іи]\s+справ[и]|особист[іи]\s+справ[и]|личн(?:ые|ое)\s+дел[ао]"
+    r"|(?:список|списки)\s+(?:учнів|учениць|студентів|службовців|працівників|особового\s+складу)"
+    r"|(?:список|списки)\s+(?:учеников|учениц|студентов|служащих|работников|личного\s+состава))\b",
+    re.I,
+)
+LETTER_HEADING_RE = re.compile(r'^[«"“]?\s*[А-ЯЁІЇЄҐA-Z]\s*[»"”]?$', re.I)
 HEADER_MARKERS = (
     "заголовок справ",
     "крайні дати",
@@ -187,6 +195,7 @@ def _make_record(
     section_year: int | None,
     minimum_year: int,
     maximum_year: int,
+    thematic_section: str = "",
 ) -> Record:
     normalized_title = normalize_text(title).strip()
     if WITHDRAWN_RE.match(normalized_title):
@@ -213,6 +222,7 @@ def _make_record(
         status=status,
         section_label=section_label,
         section_year=section_year,
+        thematic_section=thematic_section,
         start_year=start_year,
         end_year=end_year,
         pages=_parse_pages(pages),
@@ -255,6 +265,7 @@ def read_sheet(
     maximum_year = dataset.maximum_year or int(chronology.get("maximum_year", 2026))
     section_label = ""
     section_year: int | None = None
+    thematic_section = ""
     pending_case_id = ""
     pending_row: int | None = None
     carry_dates = ""
@@ -303,6 +314,7 @@ def read_sheet(
                 dataset, description, pending_row or row, pending_case_id, title,
                 dates or carry_dates, pages or carry_pages, notes or carry_notes,
                 section_label, section_year, minimum_year, maximum_year,
+                thematic_section,
             )
             records.append(record)
             issues.append(Issue(
@@ -322,6 +334,7 @@ def read_sheet(
                     dataset, description, row, synthetic, title,
                     dates or carry_dates, pages or carry_pages, notes or carry_notes,
                     section_label, section_year, minimum_year, maximum_year,
+                    thematic_section,
                 ))
                 issues.append(Issue(
                     "WARNING", dataset.path.name, sheet.title, row,
@@ -332,12 +345,17 @@ def read_sheet(
                 section_label = title
                 years = [int(year) for year in YEAR_RE.findall(title)]
                 section_year = years[0] if len(years) == 1 else None
+                if PERSONAL_SECTION_RE.match(title):
+                    thematic_section = title
+                elif not LETTER_HEADING_RE.fullmatch(title):
+                    thematic_section = ""
             continue
 
         if _looks_case_id(case_id):
             record = _make_record(
                 dataset, description, row, case_id, title, dates, pages, notes,
                 section_label, section_year, minimum_year, maximum_year,
+                thematic_section,
             )
             records.append(record)
             if not title:

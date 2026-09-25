@@ -88,6 +88,7 @@ class Record:
     status: str = "case"
     section_label: str = ""
     section_year: int | None = None
+    thematic_section: str = ""
     start_year: int | None = None
     end_year: int | None = None
     pages: int | None = None
