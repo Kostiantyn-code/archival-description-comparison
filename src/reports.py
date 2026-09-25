@@ -54,6 +54,7 @@ def record_rows(records: list[Record]) -> list[dict[str, Any]]:
         "inventory": record.inventory,
         "case_id": record.case_id,
         "title": record.title,
+        "thematic_section": record.thematic_section,
         "dates_raw": record.dates_raw,
         "start_year": record.start_year,
         "end_year": record.end_year,
@@ -63,6 +64,10 @@ def record_rows(records: list[Record]) -> list[dict[str, Any]]:
         "language": record.language,
         "categories": " | ".join(record.category_labels),
         "category_ids": " | ".join(record.categories),
+        "category_evidence": " | ".join(
+            f"{label}: {', '.join(record.evidence.get(category_id, []))}"
+            for category_id, label in zip(record.categories, record.category_labels)
+        ),
         "context_categories": " | ".join(record.context_category_labels),
         "review_flags": " | ".join(record.review_flags),
     } for record in records]
@@ -398,9 +403,11 @@ def write_workbook(
             ("dataset", "Логічний масив"), ("sheet_name", "Аркуш"), ("excel_row", "Рядок Excel"),
             ("archive", "Архів"), ("fond", "Фонд"), ("inventory", "Опис"),
             ("case_id", "№ справи"), ("title", "Заголовок"), ("dates_raw", "Крайні дати"),
+            ("thematic_section", "Тематичний розділ опису"),
             ("start_year", "Початковий рік"), ("end_year", "Кінцевий рік"),
             ("pages", "Аркушів"), ("status", "Статус"), ("language", "Мова"),
             ("categories", "Категорії"),
+            ("category_evidence", "Підстави класифікації"),
         ], record_rows(records),
     )
     _tabular_sheet(

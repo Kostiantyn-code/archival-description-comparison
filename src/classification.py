@@ -181,6 +181,7 @@ def classify_records(
 ) -> None:
     active = [record for record in records if record.analyzable]
     total = len(active)
+    section_results: dict[tuple[str, str], tuple] = {}
     for index, record in enumerate(active, start=1):
         categories = language_categories.get(record.language, language_categories["uk"])
         ambiguities = language_ambiguities.get(record.language, language_ambiguities["uk"])
@@ -201,5 +202,29 @@ def classify_records(
             macroblock_order,
             record.language,
         )
+        if record.thematic_section and not re.match(r"^\s*(?:опис|опись)\s*[№#]", record.title, re.I):
+            # Section headings (for example, "Особові справи ув’язнених") can
+            # supply the subject of name-only titles; alphabetical/year headings
+            # have already been filtered by the loader.
+            section_key = (record.language, record.thematic_section)
+            if section_key not in section_results:
+                section_results[section_key] = classify_title(
+                    record.thematic_section, categories, ambiguities, macroblock_order,
+                    record.language,
+                )
+            section_ids, section_labels, _, section_scores, _, _, _, _, _ = section_results[section_key]
+            for category_id, label in zip(section_ids, section_labels):
+                if category_id not in record.categories:
+                    record.categories.append(category_id)
+                    record.category_labels.append(label)
+                    record.scores[category_id] = section_scores[category_id]
+                    record.evidence[category_id] = [f"розділ опису: {record.thematic_section}"]
+            ordered = sorted(zip(record.categories, record.category_labels),
+                             key=lambda pair: (-record.scores[pair[0]], pair[1]))
+            record.categories = [pair[0] for pair in ordered]
+            record.category_labels = [pair[1] for pair in ordered]
+            category_by_id = {category.id: category for category in categories}
+            present_blocks = {category_by_id[category_id].macroblock for category_id in record.categories}
+            record.macroblocks = [block for block in macroblock_order if block in present_blocks]
         if progress and (index == total or index % max(1, total // 100) == 0):
             progress(index, total)
