@@ -3,14 +3,14 @@ from __future__ import annotations
 
 import fnmatch
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
 from openpyxl import load_workbook
 
 from .models import Dataset, Description, Issue, Record
-from .text_matching import clean_cell, detect_title_language, normalize_case_id, normalize_text
+from .text_matching import clean_cell, detect_title_language, normalize_case_id, normalize_text, tokenize
 
 
 YEAR_RE = re.compile(r"(?<!\d)((?:17|18|19|20)\d{2})(?!\d)")
@@ -158,14 +158,32 @@ def _parse_pages(value: str) -> int | None:
     return numbers[0] if len(numbers) == 1 else None
 
 
-def _language(title: str, configured: str) -> str:
-    detected = detect_title_language(title)
-    if detected in {"uk", "ru"}:
-        return detected
+def _sheet_language(sheet, header_row: int, configured: str) -> str:
+    """Use explicit sheet metadata or the same first-100-title vote as ADA."""
     normalized = normalize_text(configured)
-    if normalized.startswith("ru") or "рос" in normalized:
+    if normalized.startswith("ru") or "рос" in normalized or "рус" in normalized:
         return "ru"
-    return "uk"
+    if normalized.startswith("uk") or "укр" in normalized:
+        return "uk"
+    if normalized:
+        raise ValueError(f"{sheet.title}: невідома мова опису «{configured}»; використовуйте uk або ru")
+
+    counts: Counter[str] = Counter()
+    for row in sheet.iter_rows(
+        min_row=header_row + 1, max_row=header_row + 100,
+        min_col=2, max_col=2, values_only=True,
+    ):
+        title = clean_cell(row[0])
+        detected = detect_title_language(title)
+        if detected in {"uk", "ru"}:
+            counts[detected] += 2
+        elif detected == "undetermined":
+            tokens = tokenize(title)
+            if any(token in {"дело", "переписка", "сведения", "об"} for token in tokens):
+                counts["ru"] += 1
+            elif any(token in {"справа", "відомості", "щодо"} for token in tokens):
+                counts["uk"] += 1
+    return "ru" if counts["ru"] > counts["uk"] else "uk"
 
 
 def _fill_missing(record: Record, dates: str, pages: str, notes: str) -> bool:
@@ -226,7 +244,7 @@ def _make_record(
         start_year=start_year,
         end_year=end_year,
         pages=_parse_pages(pages),
-        language=_language(title, description.language),
+        language=description.language,
     )
 
 
@@ -239,8 +257,8 @@ def read_sheet(
     archive = metadata.get("archive", "")
     fond = metadata.get("fond", "")
     inventory = metadata.get("inventory", "")
-    language = metadata.get("language", "")
     header_row = _find_header_row(sheet)
+    language = _sheet_language(sheet, header_row, metadata.get("language", ""))
     reference = ", ".join(
         part for part in (
             archive,

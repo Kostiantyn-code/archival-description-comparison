@@ -11,15 +11,22 @@ from src.loader import load_all
 
 
 class LoaderTests(unittest.TestCase):
-    def _book(self, path: Path, archive: str, fond: str, inventory: str, shifted: bool = False) -> None:
+    def _book(self, path: Path, archive: str, fond: str, inventory: str,
+              shifted: bool = False, language: str | None = None,
+              titles: list[str] | None = None) -> None:
         workbook = Workbook()
         sheet = workbook.active
         sheet.title = f"Опис {inventory}"
         sheet.append(["Архів", archive])
         sheet.append(["Фонд", fond])
         sheet.append(["Опис", inventory])
+        if language is not None:
+            sheet.append(["Мова", language])
         sheet.append(["№ справи", "Заголовок справи", "Крайні дати", "Кількість аркушів", "Примітки"])
-        if shifted:
+        if titles is not None:
+            for number, title in enumerate(titles, 1):
+                sheet.append([number, title, "1850", 10, None])
+        elif shifted:
             sheet.append([1, "1918 рік", "1 січня 1918", 10, None])
             sheet.append([None, "Листування про відкриття школи", None, None, None])
         else:
@@ -54,6 +61,36 @@ class LoaderTests(unittest.TestCase):
             self.assertEqual(record.start_year, 1918)
             self.assertEqual(record.pages, 10)
             self.assertTrue(any(issue.field == "Зміщений рядок" for issue in issues))
+
+    def test_all_titles_use_inferred_sheet_language(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._book(root / "russian.xlsx", "ЦДІАК України", "356", "1", titles=[
+                "Дело о нарушении карантинного режима",
+                "Переписка о строительстве больницы",
+                "Журнал исходящих секретных документов",
+            ])
+            self._book(root / "ukrainian.xlsx", "ДАМО", "230", "1", titles=[
+                "Справа про відкриття школи та навчання дітей",
+                "Журнал вхідних документів",
+            ])
+            _, descriptions, records, _ = load_all(root, {"datasets": []}, {})
+            self.assertEqual([(d.sheet_name, d.language) for d in descriptions],
+                             [("Опис 1", "ru"), ("Опис 1", "uk")])
+            self.assertEqual([r.language for r in records if r.file_name == "russian.xlsx"],
+                             ["ru", "ru", "ru"])
+            self.assertEqual([r.language for r in records if r.file_name == "ukrainian.xlsx"],
+                             ["uk", "uk"])
+
+    def test_explicit_language_applies_to_entire_sheet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._book(root / "one.xlsx", "ЦДІАК України", "356", "1", language="ru",
+                       titles=["Справа про відкриття школи та навчання дітей"])
+            self._book(root / "two.xlsx", "ДАМО", "230", "1")
+            _, descriptions, records, _ = load_all(root, {"datasets": []}, {})
+            self.assertEqual(next(d.language for d in descriptions if d.file_name == "one.xlsx"), "ru")
+            self.assertEqual(next(r.language for r in records if r.file_name == "one.xlsx"), "ru")
 
 
 if __name__ == "__main__":
