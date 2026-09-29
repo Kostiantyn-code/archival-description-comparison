@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from src.analysis import overview_rows
 from src.loader import load_all
@@ -61,6 +61,30 @@ class LoaderTests(unittest.TestCase):
             self.assertEqual(record.start_year, 1918)
             self.assertEqual(record.pages, 10)
             self.assertTrue(any(issue.field == "Зміщений рядок" for issue in issues))
+
+    def test_one_dataset_keeps_distinct_archives_and_fonds(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._book(root / "combined.xlsx", "ДАМО", "230", "1")
+            self._book(root / "other.xlsx", "ДАМО", "229", "1")
+            book = load_workbook(root / "combined.xlsx")
+            sheet = book.copy_worksheet(book.active)
+            sheet.title = "ЦДІАК"
+            sheet.cell(1, 2, "ЦДІАК")
+            sheet.cell(2, 2, "356")
+            book.save(root / "combined.xlsx")
+            book.close()
+            datasets, descriptions, records, _ = load_all(root, {"datasets": []}, {})
+            combined = next(d for d in datasets if d.path.name == "combined.xlsx")
+            self.assertEqual(len(datasets), 2)
+            parts = [d for d in descriptions if d.dataset_id == combined.id]
+            self.assertEqual([(d.archive, d.fond, d.inventory) for d in parts],
+                             [("ДАМО", "230", "1"), ("ЦДІАК", "356", "1")])
+            self.assertIn("356", combined.reference)
+            self.assertIn("230", combined.reference)
+            active = [r for r in records if r.dataset_id == combined.id and r.analyzable]
+            self.assertEqual(len(active), 2)
+            self.assertEqual(len({r.uid for r in records}), 3)
 
     def test_all_titles_use_inferred_sheet_language(self):
         with tempfile.TemporaryDirectory() as tmp:

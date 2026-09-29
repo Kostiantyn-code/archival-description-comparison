@@ -18,6 +18,8 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from . import __version__
 from .models import Category, Dataset, Description, Issue, Record
+from .comparative_profiles import REPORT_COLUMNS
+from .document_types import DOCUMENT_TYPES, DOCUMENT_TYPE_RULES_VERSION
 
 
 NAVY = "1F4E78"
@@ -31,12 +33,12 @@ WARNING = "FFF2CC"
 ERROR = "F4CCCC"
 
 
-def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
-    if not rows:
+def _write_csv(path: Path, rows: list[dict[str, Any]], fields: list[str] | None = None) -> None:
+    if not rows and not fields:
         path.write_text("", encoding="utf-8-sig")
         return
     with path.open("w", encoding="utf-8-sig", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(rows[0]), delimiter=";")
+        writer = csv.DictWriter(stream, fieldnames=fields or list(rows[0]), delimiter=";")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -111,6 +113,8 @@ def write_csv_reports(
     }
     for filename, rows in mapping.items():
         _write_csv(tables_dir / filename, rows)
+    for key, columns in REPORT_COLUMNS.items():
+        _write_csv(tables_dir / f"{key}.csv", analysis[key], [key for key, _ in columns])
 
 
 def _title(sheet, text: str, subtitle: str = "") -> int:
@@ -425,6 +429,18 @@ def write_workbook(
         if fill:
             for column in range(1, check_sheet.max_column + 1):
                 check_sheet.cell(row, column).fill = PatternFill("solid", fgColor=fill)
+    profile_sheets = {
+        "document_types": ("Типи документів", "Згадки типів документів за масивами"),
+        "document_types_by_description": ("Типи за описами", "Згадки типів документів за описами"),
+        "document_type_mentions": ("Згадки типів", "Заголовки та знайдені вирази типів документів"),
+        "theme_links": ("Зв’язки тем", "Мережа співкласифікації за масивами"),
+        "theme_links_by_description": ("Зв’язки за описами", "Мережа співкласифікації за описами"),
+        "theme_link_cases": ("Справи зв’язків", "Справи, що формують пари тем"),
+    }
+    for key, (title, heading) in profile_sheets.items():
+        _tabular_sheet(workbook, title, heading, REPORT_COLUMNS[key], analysis[key],
+                       percent_keys={"percent_of_titles"},
+                       decimal_keys={"per_1000_titles", "shared_per_1000_titles", "relative_frequency"})
     path.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(path)
 
@@ -782,6 +798,31 @@ def create_charts(
         fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
         plt.close(fig)
         created.append(filename)
+    if analysis.get("document_types") and datasets:
+        import numpy as np
+        values = {(row["dataset_id"], row["document_type_id"]): row["percent_of_titles"]
+                  for row in analysis["document_types"]}
+        matrix = np.array([[values.get((d.id, kind.id))
+                            if values.get((d.id, kind.id)) is not None else np.nan
+                            for d in datasets] for kind in DOCUMENT_TYPES])
+        fig, ax = plt.subplots(figsize=(max(9, len(datasets) * 1.6 + 5), 9))
+        cmap = plt.get_cmap("Blues").copy()
+        cmap.set_bad("#dddddd")
+        heat = ax.imshow(matrix, aspect="auto", vmin=0, vmax=100, cmap=cmap)
+        ax.set_xticks(range(len(datasets)), [d.short_label for d in datasets], rotation=30, ha="right")
+        ax.set_yticks(range(len(DOCUMENT_TYPES)), [kind.label for kind in DOCUMENT_TYPES])
+        for i in range(len(DOCUMENT_TYPES)):
+            for j in range(len(datasets)):
+                value = matrix[i, j]
+                ax.text(j, i, "—" if np.isnan(value) else f"{value:.1f}", ha="center", va="center",
+                        color="white" if value > 55 else "#202020", fontsize=9)
+        ax.set_title("Згадки типів документів, % заголовків масиву", pad=16)
+        fig.colorbar(heat, ax=ax, label="Частка заголовків, %")
+        fig.tight_layout()
+        filename = "document_types.png"
+        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
+        plt.close(fig)
+        created.append(filename)
     return created
 
 
@@ -827,6 +868,7 @@ def write_html_report(
         "chronology_by_description.png": "Річні частки справ кожного опису, %: накладені ряди",
         "classification_coverage.png": "Стан класифікації: стовпчики зі справ окремих описів",
         "categories.png": "Тематичні категорії: сусідні панелі фондів і спільна легенда",
+        "document_types.png": "Згадки типів документів: частка заголовків кожного масиву, %",
     }
     charts = "".join(
         f"<figure><img src='figures/{html.escape(filename)}' alt='{html.escape(chart_titles.get(filename, filename))}'>"
@@ -860,6 +902,12 @@ figure{{margin:20px 0;background:white;border:1px solid var(--line);padding:14px
 {_html_table([('dataset','Масив'),('reference','Архівний опис'),('analyzable_titles','Справ в аналізі'),('classified_titles','Тематично класифіковано'),('withdrawn','Вибулих')], analysis['descriptions'])}
 <p class="lead">Діаграма категорій показує частку від справ кожного масиву окремо; її сегменти — внесок описів у цю частку. Інші стовпчикові графіки показують кількості. Таблиці «Категорії описів» і «Класифікація описів» у comparison.xlsx та CSV містять кількості й частки зі знаменниками опису та масиву.</p>
 <h2>Візуалізації</h2>{charts}
+<h2>Типи документів</h2>
+<p class="lead">Лексичні згадки у заголовках, а не перевірений склад документів усередині справ. Один тип враховано один раз на заголовок; сума часток може перевищувати 100%. Порожня частка означає відсутність придатних заголовків.</p>
+{_html_table([('dataset','Масив'),('document_type','Тип документа'),('titles_total','Заголовків (100%)'),('titles_with_type','Зі згадкою'),('percent_of_titles','Частка, %'),('per_1000_titles','На 1000')], analysis['document_types'])}
+<h2>Зв’язки між темами справ</h2>
+<p><a href="figures/theme_links.html">Відкрити інтерактивну мережу співкласифікації</a></p>
+<p class="lead">Оберіть масив або опис. Положення вузлів та шкала товщини ліній однакові для всіх масивів. Для вибраної пари показано зіставлення всіх масивів, вихідні кількості, частоту на 1000 заголовків і lift. Повний реєстр пар міститься в CSV та Excel.</p>
 <h2>Характерна лексика</h2>
 {_html_table([('dataset','Масив'),('rank','Місце'),('term','Термін'),('titles','Заголовків'),('percent_of_titles','Частка, %')], top_vocabulary)}
 <h2>Найподібніші справи</h2>
@@ -881,6 +929,7 @@ def write_manifest(
         "status": "complete",
         "script_version": __version__,
         "dictionary_version": dictionary_version,
+        "document_type_rules_version": DOCUMENT_TYPE_RULES_VERSION,
         "completed_at": datetime.now().isoformat(timespec="seconds"),
         "python": platform.python_version(),
         "datasets": [
