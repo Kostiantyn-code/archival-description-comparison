@@ -105,7 +105,8 @@ class Record:
 
     @property
     def uid(self) -> str:
-        return f"{self.dataset_id}:{self.sheet_name}:{self.case_id or 'row-' + str(self.excel_row)}"
+        # Case numbers can repeat within an inventory; the source row is unique.
+        return f"{self.dataset_id}:{self.sheet_name}:row-{self.excel_row}"
 
     @property
     def description_reference(self) -> str:

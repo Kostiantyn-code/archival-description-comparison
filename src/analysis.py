@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import Category, Dataset, Description, Record
+from .comparative_profiles import build_comparative_profiles
 from .text_matching import MATCH_LANGUAGE, light_stem_word, tokenize
 
 
@@ -527,6 +528,7 @@ def build_analysis(
     records: list[Record],
     categories: list[Category],
     config: dict[str, Any],
+    macroblock_labels: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     dataset_by_id = {dataset.id: dataset for dataset in datasets}
     vocabulary, common = vocabulary_tables(
@@ -537,6 +539,7 @@ def build_analysis(
     )
     topic_unclassified = topic_unclassified_rows(records)
     return {
+        **build_comparative_profiles(datasets, descriptions, records, categories, macroblock_labels),
         "overview": overview_rows(datasets, descriptions, records),
         "classification_coverage": classification_coverage_rows(datasets, records),
         "topic_unclassified": topic_unclassified,

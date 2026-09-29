@@ -23,6 +23,10 @@ Development version: `0.3.0.dev0`; latest release: `v0.2.0`.
 
 Worksheets remain distinguishable in tables and description-level charts.
 Workbook summaries, comparative charts, and vocabulary aggregate all sheets.
+One dataset may contain different archives and fonds, including a reconstructed
+documentary complex. Archive/fond/inventory metadata belong to each worksheet.
+Record IDs use `dataset:sheet:row-N` to distinguish repeated case numbers; they
+change if source rows are reordered.
 
 ## Features
 
@@ -40,6 +44,9 @@ Workbook summaries, comparative charts, and vocabulary aggregate all sheets.
 - separate coverage and unclassified-title reports;
 - frequent, distinctive, and shared vocabulary;
 - cross-dataset title similarity based on character TF-IDF;
+- document-form mentions: counts, percentages and mentions per 1,000 titles;
+- category and macroblock co-classification: counts, rates per 1,000 and lift,
+  with an offline network selector and cross-dataset table for each selected pair;
 - XLSX, CSV, HTML, PNG, and JSON output;
 - entirely local processing.
 
@@ -106,6 +113,25 @@ provide annual counts, classification states, and thematic categories per
 worksheet. Category tables give both the worksheet and workbook denominators.
 The main bar charts show absolute counts with each bar stacked from its descriptions;
 the aggregate chronology and workbook panels with overlaid inventories remain separate plots.
+
+## Document types and theme links
+
+New outputs are `document_types.csv`, `document_types_by_description.csv`,
+`document_type_mentions.csv`, `theme_links.csv`, `theme_links_by_description.csv`
+and `theme_link_cases.csv`, with six corresponding XLSX sheets. A percentage
+heatmap is saved as `figures/document_types.png`. The standalone
+`figures/theme_links.html` is linked from the main report and follows
+`reports.html` independently of `reports.charts`.
+
+Each type counts once per analyzable title. Mentions describe title wording,
+not verified documents inside a case. Subject categories only form pairs;
+context-only assignments are excluded. All datasets use the same taxonomy and
+include zero-count pairs. For N analyzable titles, marginals A and B and shared
+count S, rate = S/N × 1000 and lift = S×N/(A×B). A zero denominator yields a
+blank, not zero. Rare-pair lift is descriptive, not evidence of significance or
+causality. The network uses fixed node positions and shared metric scales;
+its lift view filters counts below max(3, ceil(N×0.0015)), while all pairs remain
+in CSV/XLSX. The manifest records `document_type_rules_version`.
 
 ## Testing
 

@@ -14,6 +14,7 @@ if str(BASE_DIR) not in sys.path:
 from src import __version__
 from src.analysis import build_analysis
 from src.classification import classify_records, load_language_dictionaries
+from src.comparative_profiles import write_theme_network
 from src.loader import load_all, safe_load_yaml
 from src.reports import create_charts, write_csv_reports, write_html_report, write_manifest, write_workbook
 
@@ -105,7 +106,7 @@ def main() -> Path:
     print(f"   Час класифікації: {time.perf_counter() - started:.1f} с")
 
     print("4. Порівняльні таблиці, лексика та подібні справи...")
-    analysis = build_analysis(BASE_DIR, datasets, descriptions, records, categories, config)
+    analysis = build_analysis(BASE_DIR, datasets, descriptions, records, categories, config, macroblock_labels)
 
     output_files: list[Path] = []
     reports = config.get("reports", {})
@@ -121,6 +122,9 @@ def main() -> Path:
         chart_files = create_charts(figures_dir, datasets, descriptions, categories, analysis)
         output_files.extend(figures_dir / filename for filename in chart_files)
     if reports.get("html", True):
+        network_path = figures_dir / "theme_links.html"
+        write_theme_network(network_path, analysis["theme_network"])
+        output_files.append(network_path)
         html_path = run_dir / "report.html"
         write_html_report(html_path, datasets, analysis, chart_files, issues)
         output_files.append(html_path)
