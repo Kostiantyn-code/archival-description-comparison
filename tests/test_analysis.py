@@ -10,6 +10,8 @@ from src.analysis import (
     chronology_rows,
     classification_by_description_rows,
     classification_coverage_rows,
+    description_rows,
+    overview_rows,
     topic_unclassified_rows,
 )
 from src.models import Category, Dataset, Description, Record
@@ -44,6 +46,45 @@ def make_record(dataset: Dataset, number: int) -> Record:
 
 
 class AnalysisTests(unittest.TestCase):
+    def test_scope_tables_keep_identical_sheet_names_separate_and_empty_scopes(self):
+        left, right, empty = [make_dataset(name) for name in ("left", "right", "empty")]
+        datasets = [left, right, empty]
+        descriptions = [Description(d.id, d.path.name, "Опис 1", "Архів", d.id,
+                                    "1", "uk", 4, d.reference)
+                        for d in (right, empty, left)]
+        records = [make_record(left, 1), make_record(right, 1),
+                   make_record(left, 2), make_record(left, 3), make_record(left, 4)]
+        records[0].categories = ["culture"]
+        records[0].context_categories = ["education"]
+        records[2].context_categories = ["education"]
+        records[3].title = " "  # A case without an analyzable title.
+        records[4].status = "withdrawn"
+        before = [(r.dataset_id, r.sheet_name, r.title, list(r.categories)) for r in records]
+        category = Category("culture", "Культура", "cultural", 1,
+                            [], [], [], [], [], [], [], [])
+
+        overview = overview_rows(datasets, descriptions, records)
+        self.assertEqual([(r["cases"], r["analyzable_titles"], r["withdrawn"])
+                          for r in overview], [(3, 2, 1), (1, 1, 0), (0, 0, 0)])
+        coverage = classification_coverage_rows(datasets, records)
+        self.assertEqual([(r["subject_classified"], r["context_only"], r["unclassified"])
+                          for r in coverage], [(1, 1, 0), (0, 0, 1), (0, 0, 0)])
+        detail = description_rows(descriptions, records, {d.id: d for d in datasets})
+        self.assertEqual([r["dataset_id"] for r in detail], ["right", "empty", "left"])
+        self.assertEqual([r["analyzable_titles"] for r in detail], [1, 0, 2])
+        categories = categories_by_description_rows(datasets, descriptions, records, [category])
+        self.assertEqual([r["cases"] for r in categories], [0, 0, 1])
+        self.assertEqual([r["percent_of_dataset_titles"] for r in categories], [0, 0, 50])
+        self.assertEqual([r["cases"] for r in category_rows(datasets, records, [category])], [1, 0, 0])
+        self.assertEqual([(r.dataset_id, r.sheet_name, r.title, list(r.categories))
+                          for r in records], before)
+
+        # A new call must reflect edits rather than reuse stale grouped state.
+        records[0].categories = []
+        updated = classification_by_description_rows(datasets, descriptions, records)
+        self.assertEqual(updated[-1]["context_only"], 2)
+        self.assertEqual(updated[-1]["subject_classified"], 0)
+
     def setUp(self) -> None:
         self.left = make_dataset("left")
         self.right = make_dataset("right")

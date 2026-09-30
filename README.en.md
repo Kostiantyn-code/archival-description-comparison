@@ -135,6 +135,9 @@ in CSV/XLSX. The manifest records `document_type_rules_version`.
 
 ## Testing
 
+See the [refactoring audit](docs/refactoring-audit.md) (Ukrainian) for
+output equivalence checks and the summary-table benchmark.
+
 ```bash
 python -m compileall -q main.py src tests
 python -m unittest discover -s tests -v

@@ -9,6 +9,7 @@ from typing import Any
 
 from openpyxl import load_workbook
 
+from .configuration import safe_load_yaml
 from .models import Dataset, Description, Issue, Record
 from .text_matching import clean_cell, detect_title_language, normalize_case_id, normalize_text, tokenize
 
@@ -41,14 +42,6 @@ HEADER_MARKERS = (
     "№\\nз",
     "№ справ",
 )
-
-
-def safe_load_yaml(path: Path, yaml_module) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as stream:
-        data = yaml_module.safe_load(stream)
-    if not isinstance(data, dict):
-        raise ValueError(f"Корінь YAML має бути словником: {path}")
-    return data
 
 
 def discover_workbooks(input_dir: Path) -> list[Path]:
@@ -119,9 +112,13 @@ def _metadata(sheet) -> dict[str, str]:
     return result
 
 
-def _is_header_row(values: list[str]) -> bool:
+def _header_score(values: list[str]) -> int:
     joined = " | ".join(normalize_text(value).replace("\n", " ") for value in values if value)
-    return any(marker.replace("\n", " ") in joined for marker in HEADER_MARKERS)
+    return sum(marker.replace("\n", " ") in joined for marker in HEADER_MARKERS)
+
+
+def _is_header_row(values: list[str]) -> bool:
+    return bool(_header_score(values))
 
 
 def _find_header_row(sheet) -> int:
@@ -129,8 +126,7 @@ def _find_header_row(sheet) -> int:
     known_rows = sheet.max_row if isinstance(sheet.max_row, int) else 25
     for row in range(1, min(known_rows, 25) + 1):
         values = [clean_cell(sheet.cell(row, column).value) for column in range(1, 6)]
-        joined = " | ".join(normalize_text(value).replace("\n", " ") for value in values if value)
-        score = sum(marker.replace("\n", " ") in joined for marker in HEADER_MARKERS)
+        score = _header_score(values)
         if score:
             scores.append((score, row))
     return max(scores, default=(0, 1), key=lambda item: (item[0], -item[1]))[1]

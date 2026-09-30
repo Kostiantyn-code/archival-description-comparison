@@ -12,20 +12,6 @@ MATCH_LANGUAGE = ContextVar("match_language", default="uk")
 WORD_RE = re.compile(
     r"[0-9A-Za-zА-Яа-яІіЇїЄєҐґЁё]+(?:[-'][0-9A-Za-zА-Яа-яІіЇїЄєҐґЁё]+)*"
 )
-YEAR_HEADING_RE = re.compile(
-    r"^\s*"
-    r"((?:17|18|19|20)\d{2}"
-    r"(?:\s*(?:,|;|/|-|і|та)\s*(?:17|18|19|20)\d{2})*)"
-    r"\s*(?:рік|роки|років|рр?|год|годы|годов|гг?)?\.?\s*$",
-    re.I,
-)
-YEAR_RE = re.compile(r"(?<!\d)((?:17|18|19|20)\d{2})(?!\d)")
-LONG_NUMBER_RE = re.compile(r"(?<!\d)\d{5,}(?!\d)")
-WITHDRAWN_RE = re.compile(
-    r"^(?:в\s*и\s*б\s*у\s*л\s*[аио]|в\s*ы\s*б\s*ы\s*л\s*[аои])(?=$|[\s.,;:—-])",
-    re.I,
-)
-
 STEM_ENDINGS = sorted(
     {
         "остями", "істями", "остях", "істях", "остям", "істям",
@@ -202,18 +188,6 @@ def find_phrase_positions(tokens: list[str], phrase: list[str]) -> list[int]:
     return positions
 
 
-def contains_item(tokens: list[str], item: str) -> bool:
-    wanted = item_tokens(item)
-    if not wanted:
-        return False
-    if len(wanted) == 1:
-        return any(
-            wanted[0] == token or wanted[0] in token.split("-")
-            for token in tokens
-        )
-    return bool(find_phrase_positions(tokens, wanted))
-
-
 def item_matcher(tokens: list[str]):
     """Індекс одного заголовка після маскування; кеш діє лише для цієї категорії."""
     language = MATCH_LANGUAGE.get()
@@ -265,9 +239,9 @@ def normalize_case_id(value: str) -> str:
 
 # Легкий стемінг, НЕ повна лематизація. Мовні кеші ізольовано.
 RU_ENDINGS = sorted({
-    "иями", "иями", "иям", "ием", "ией", "ие", "ия", "ии", "ями", "ами", "ого", "ему", "ому", "ыми", "ими", "иях",
+    "иями", "иям", "ием", "ией", "ие", "ия", "ии", "ями", "ами", "ого", "ему", "ому", "ыми", "ими", "иях",
     "ов", "ев", "ей", "ам", "ям", "ах", "ях", "ом", "ем", "ий", "ый",
-    "ой", "ая", "яя", "ое", "ее", "ые", "ие", "ую", "юю", "ых", "их",
+    "ой", "ая", "яя", "ое", "ее", "ые", "ую", "юю", "ых", "их",
     "ым", "им", "ою", "ею", "а", "я", "у", "ю", "ы", "и", "е", "о", "ь"
 }, key=lambda s: (-len(s), s))
 
