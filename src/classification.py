@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .configuration import safe_load_yaml as _load_yaml
 from .models import CATEGORY_RULE_FIELDS, Category, Record
 from .text_matching import (
     MATCH_LANGUAGE,
@@ -12,14 +13,6 @@ from .text_matching import (
     mask_item,
     stem_tokens,
 )
-
-
-def _load_yaml(path: Path, yaml_module) -> dict[str, Any]:
-    with path.open("r", encoding="utf-8") as stream:
-        data = yaml_module.safe_load(stream)
-    if not isinstance(data, dict):
-        raise ValueError(f"Корінь YAML має бути словником: {path}")
-    return data
 
 
 def load_language_dictionaries(

@@ -283,6 +283,9 @@ run.sh         запуск у Linux і macOS
 
 ## Перевірка
 
+Звіт про усунення дублювання, перевірку еквівалентності та вимір швидкості
+підрахунків: [аудит коду](docs/refactoring-audit.md).
+
 ```bash
 python -m compileall -q main.py src tests
 python -m unittest discover -s tests -v

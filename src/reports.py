@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
@@ -24,11 +24,9 @@ from .document_types import DOCUMENT_TYPES, DOCUMENT_TYPE_RULES_VERSION
 
 NAVY = "1F4E78"
 BLUE = "D9EAF7"
-LIGHT_BLUE = "EAF3F8"
 PALE = "F6F8FA"
 WHITE = "FFFFFF"
 TEXT = "202020"
-GRID = "D9E1E8"
 WARNING = "FFF2CC"
 ERROR = "F4CCCC"
 
@@ -681,6 +679,11 @@ def create_charts(
     created: list[str] = []
     colors = _description_colors(descriptions)
 
+    def save_chart(fig, filename: str) -> None:
+        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
+        plt.close(fig)
+        created.append(filename)
+
     overview = analysis["overview"]
     labels = [row["short_label"] for row in overview]
     if descriptions:
@@ -699,10 +702,7 @@ def create_charts(
         ax.set_title("Обсяг порівнюваних масивів за описами", pad=75)
         ax.set_xlabel("Кількість заголовків справ")
         fig.tight_layout()
-        filename = "dataset_sizes.png"
-        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
-        plt.close(fig)
-        created.append(filename)
+        save_chart(fig, "dataset_sizes.png")
 
     chronology = analysis["chronology"]
     if chronology:
@@ -727,10 +727,7 @@ def create_charts(
         axes[-1][0].set_xlabel("Рік")
         fig.suptitle("Хронологічний розподіл справ", fontsize=13)
         fig.tight_layout()
-        filename = "chronology.png"
-        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
-        plt.close(fig)
-        created.append(filename)
+        save_chart(fig, "chronology.png")
 
     chronology_parts = analysis["chronology_by_description"]
     if chronology_parts:
@@ -753,10 +750,7 @@ def create_charts(
         axes[-1][0].set_xlabel("Рік")
         fig.suptitle("Хронологія описів у кожному порівнюваному масиві", fontsize=13, y=1.04)
         fig.tight_layout(h_pad=2.5)
-        filename = "chronology_by_description.png"
-        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
-        plt.close(fig)
-        created.append(filename)
+        save_chart(fig, "chronology_by_description.png")
 
     by_description = {
         (row["dataset_id"], row["sheet_name"]): row
@@ -781,10 +775,7 @@ def create_charts(
             ax.set_ylabel("Кількість справ")
         fig.suptitle("Покриття класифікацією за окремими описами", fontsize=13)
         fig.tight_layout()
-        filename = "classification_coverage.png"
-        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
-        plt.close(fig)
-        created.append(filename)
+        save_chart(fig, "classification_coverage.png")
 
     category_parts = {
         (row["dataset_id"], row["sheet_name"], row["category_id"]): row["cases"]
@@ -794,10 +785,7 @@ def create_charts(
         dataset_totals = {row["dataset_id"]: row["analyzable_titles"] for row in analysis["overview"]}
         fig = _category_figure(datasets, descriptions, categories, category_parts,
                                colors, dataset_totals)
-        filename = "categories.png"
-        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
-        plt.close(fig)
-        created.append(filename)
+        save_chart(fig, "categories.png")
     if analysis.get("document_types") and datasets:
         import numpy as np
         values = {(row["dataset_id"], row["document_type_id"]): row["percent_of_titles"]
@@ -819,10 +807,7 @@ def create_charts(
         ax.set_title("Згадки типів документів, % заголовків масиву", pad=16)
         fig.colorbar(heat, ax=ax, label="Частка заголовків, %")
         fig.tight_layout()
-        filename = "document_types.png"
-        fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
-        plt.close(fig)
-        created.append(filename)
+        save_chart(fig, "document_types.png")
     return created
 
 

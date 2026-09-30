@@ -17,6 +17,30 @@ def _safe_percent(part: int, whole: int) -> float:
     return part / whole * 100 if whole else 0.0
 
 
+def _group_records(
+    records: list[Record], *, by_description: bool = False, analyzable_only: bool = False,
+) -> dict[Any, list[Record]]:
+    """Group once per table instead of scanning all records for every scope.
+
+    Description keys include the dataset ID because sheet names can repeat.
+    Groups retain source order and are rebuilt on each call after classification.
+    """
+    grouped: dict[Any, list[Record]] = defaultdict(list)
+    for record in records:
+        if analyzable_only and not record.analyzable:
+            continue
+        key = (record.dataset_id, record.sheet_name) if by_description else record.dataset_id
+        grouped[key].append(record)
+    return grouped
+
+
+def _classification_counts(active: list[Record]) -> tuple[int, int, int]:
+    """Return the three mutually exclusive states of analyzable titles."""
+    subject = sum(bool(record.categories) for record in active)
+    context = sum(not record.categories and bool(record.context_categories) for record in active)
+    return subject, context, len(active) - subject - context
+
+
 def _year_values(record: Record, chronology: dict[str, Any]) -> list[int]:
     if record.start_year is None:
         return []
@@ -33,19 +57,15 @@ def overview_rows(
     descriptions: list[Description],
     records: list[Record],
 ) -> list[dict[str, Any]]:
+    grouped = _group_records(records)
     rows: list[dict[str, Any]] = []
     for dataset in datasets:
-        subset = [record for record in records if record.dataset_id == dataset.id]
+        subset = grouped.get(dataset.id, [])
         cases = [record for record in subset if record.status == "case"]
         active = [record for record in subset if record.analyzable]
         dated = [record for record in active if record.start_year is not None]
         page_values = [record.pages for record in active if record.pages is not None]
-        subject_classified = sum(bool(record.categories) for record in active)
-        context_only = sum(
-            not record.categories and bool(record.context_categories)
-            for record in active
-        )
-        unclassified = len(active) - subject_classified - context_only
+        subject_classified, context_only, unclassified = _classification_counts(active)
         rows.append({
             "dataset_id": dataset.id,
             "dataset": dataset.label,
@@ -86,18 +106,11 @@ def classification_coverage_rows(
     records: list[Record],
 ) -> list[dict[str, Any]]:
     """Summarize mutually exclusive classification states per logical dataset."""
+    grouped = _group_records(records, analyzable_only=True)
     rows: list[dict[str, Any]] = []
     for dataset in datasets:
-        active = [
-            record for record in records
-            if record.dataset_id == dataset.id and record.analyzable
-        ]
-        subject_classified = sum(bool(record.categories) for record in active)
-        context_only = sum(
-            not record.categories and bool(record.context_categories)
-            for record in active
-        )
-        unclassified = len(active) - subject_classified - context_only
+        active = grouped.get(dataset.id, [])
+        subject_classified, context_only, unclassified = _classification_counts(active)
         rows.append({
             "dataset_id": dataset.id,
             "dataset": dataset.label,
@@ -154,12 +167,10 @@ def description_rows(
     records: list[Record],
     dataset_by_id: dict[str, Dataset],
 ) -> list[dict[str, Any]]:
+    grouped = _group_records(records, by_description=True)
     rows: list[dict[str, Any]] = []
     for description in descriptions:
-        subset = [
-            record for record in records
-            if record.dataset_id == description.dataset_id and record.sheet_name == description.sheet_name
-        ]
+        subset = grouped.get((description.dataset_id, description.sheet_name), [])
         cases = [record for record in subset if record.status == "case"]
         active = [record for record in subset if record.analyzable]
         rows.append({
@@ -237,16 +248,11 @@ def classification_by_description_rows(
     datasets: list[Dataset], descriptions: list[Description], records: list[Record]
 ) -> list[dict[str, Any]]:
     labels = {dataset.id: dataset.label for dataset in datasets}
+    grouped = _group_records(records, by_description=True, analyzable_only=True)
     rows: list[dict[str, Any]] = []
     for item in descriptions:
-        active = [
-            record for record in records
-            if record.dataset_id == item.dataset_id
-            and record.sheet_name == item.sheet_name and record.analyzable
-        ]
-        subject = sum(bool(record.categories) for record in active)
-        context = sum(not record.categories and bool(record.context_categories) for record in active)
-        unclassified = len(active) - subject - context
+        active = grouped.get((item.dataset_id, item.sheet_name), [])
+        subject, context, unclassified = _classification_counts(active)
         rows.append({
             "dataset_id": item.dataset_id,
             "dataset": labels[item.dataset_id],
@@ -269,13 +275,10 @@ def categories_by_description_rows(
 ) -> list[dict[str, Any]]:
     labels = {dataset.id: dataset.label for dataset in datasets}
     dataset_totals = Counter(record.dataset_id for record in records if record.analyzable)
+    grouped = _group_records(records, by_description=True, analyzable_only=True)
     rows: list[dict[str, Any]] = []
     for item in descriptions:
-        active = [
-            record for record in records
-            if record.dataset_id == item.dataset_id
-            and record.sheet_name == item.sheet_name and record.analyzable
-        ]
+        active = grouped.get((item.dataset_id, item.sheet_name), [])
         counts = Counter(category_id for record in active for category_id in record.categories)
         for category in categories:
             rows.append({
@@ -299,10 +302,11 @@ def category_rows(
     records: list[Record],
     categories: list[Category],
 ) -> list[dict[str, Any]]:
+    grouped = _group_records(records, analyzable_only=True)
     rows: list[dict[str, Any]] = []
     category_by_id = {category.id: category for category in categories}
     for dataset in datasets:
-        active = [record for record in records if record.dataset_id == dataset.id and record.analyzable]
+        active = grouped.get(dataset.id, [])
         counts = Counter(category_id for record in active for category_id in record.categories)
         for category in categories:
             rows.append({
