@@ -26,3 +26,9 @@ reports:
   xlsx: true
   html: true
   charts: true
+
+# Presentation language only; analysis, dictionaries and CSV/XLSX stay unchanged.
+visualization:
+  language: uk
+  bilingual_labels: false
+  label_overrides: {}

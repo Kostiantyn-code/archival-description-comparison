@@ -12,6 +12,7 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from src import __version__
+from src.visualization import Visualization
 from src.analysis import build_analysis
 from src.classification import classify_records, load_language_dictionaries
 from src.comparative_profiles import write_theme_network
@@ -53,6 +54,7 @@ def main() -> Path:
         raise SystemExit("Не встановлено PyYAML. Виконайте: python -m pip install -r requirements.txt") from error
 
     config = safe_load_yaml(BASE_DIR / "config" / "analysis.yaml", yaml)
+    visual = Visualization.from_config(config)
     datasets_config = safe_load_yaml(BASE_DIR / "config" / "datasets.yaml", yaml)
     if args.no_similarity:
         config.setdefault("similarity", {})["enabled"] = False
@@ -119,18 +121,19 @@ def main() -> Path:
         output_files.append(workbook_path)
     chart_files: list[str] = []
     if reports.get("charts", True):
-        chart_files = create_charts(figures_dir, datasets, descriptions, categories, analysis)
+        chart_files = create_charts(figures_dir, datasets, descriptions, categories, analysis, visual)
         output_files.extend(figures_dir / filename for filename in chart_files)
+        output_files.extend(sorted(figures_dir.glob("*.svg")))
     if reports.get("html", True):
         network_path = figures_dir / "theme_links.html"
-        write_theme_network(network_path, analysis["theme_network"])
+        write_theme_network(network_path, analysis["theme_network"], visual, datasets, descriptions)
         output_files.append(network_path)
         html_path = run_dir / "report.html"
-        write_html_report(html_path, datasets, analysis, chart_files, issues)
+        write_html_report(html_path, datasets, analysis, chart_files, issues, visual)
         output_files.append(html_path)
 
     manifest_path = run_dir / "run_manifest.json"
-    write_manifest(manifest_path, BASE_DIR, datasets, dictionary_version, output_files)
+    write_manifest(manifest_path, BASE_DIR, datasets, dictionary_version, output_files, visual)
     output_files.append(manifest_path)
     print("\nГОТОВО")
     print(f"Логічних масивів: {len(datasets)}")
