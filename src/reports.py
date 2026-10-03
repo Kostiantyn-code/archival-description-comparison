@@ -9,6 +9,7 @@ import platform
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
+from textwrap import fill
 from typing import Any, Iterable
 
 from openpyxl import Workbook
@@ -17,6 +18,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from . import __version__
+from .visualization import Visualization
 from .models import Category, Dataset, Description, Issue, Record
 from .comparative_profiles import REPORT_COLUMNS
 from .document_types import DOCUMENT_TYPES, DOCUMENT_TYPE_RULES_VERSION
@@ -466,7 +468,13 @@ def _description_colors(descriptions: list[Description]) -> dict[tuple[str, str]
     return colors
 
 
-def _description_label(item: Description) -> str:
+def _description_label(item: Description, visual: Visualization | None = None) -> str:
+    visual = visual or Visualization()
+    if visual.language == "en":
+        key = f"{item.dataset_id}:{item.sheet_name}"
+        reference = visual.inventory_reference(key, item.archive, item.fond,
+                                               item.inventory, item.reference)
+        return fill(reference, 55)
     if item.fond:
         prefix = f"{item.archive}, " if item.archive else ""
         detail = f"опис {item.inventory}" if item.inventory else item.sheet_name
@@ -474,11 +482,19 @@ def _description_label(item: Description) -> str:
     return item.reference
 
 
-def _fond_summary(descriptions: list[Description]) -> str:
+def _fond_summary(descriptions: list[Description], visual: Visualization | None = None) -> str:
     """Name all fonds and their inventory numbers within one workbook."""
+    visual = visual or Visualization()
     groups: dict[tuple[str, str], list[str]] = defaultdict(list)
     for item in descriptions:
         groups[(item.archive, item.fond)].append(item.inventory or item.sheet_name)
+    if visual.language == "en":
+        return fill("; ".join(
+            f"{visual.label('archives', archive, archive) + ': ' if archive else ''}"
+            f"Fond {fond or visual.text('без номера')}: "
+            f"{visual.text('Опис' if len(numbers) == 1 else 'Описи')} "
+            f"{', '.join(dict.fromkeys(numbers))}"
+            for (archive, fond), numbers in groups.items()), 70)
     return "; ".join(
         f"{archive + ': ' if archive else ''}Фонд {fond or 'без номера'}: "
         f"{'Опис' if len(numbers) == 1 else 'Описи'} {', '.join(dict.fromkeys(numbers))}"
@@ -490,9 +506,12 @@ def _stacked_description_bars(
     ax, labels: list[str], descriptions: list[Description],
     values: dict[tuple[str, str], list[int]], colors: dict[tuple[str, str], str],
     total_label: str = "Усього", *, horizontal: bool = True,
+    visual: Visualization | None = None,
 ) -> None:
     from matplotlib.colors import to_rgb
 
+    visual = visual or Visualization()
+    total_label = visual.text(total_label)
     totals = [
         sum(values[(item.dataset_id, item.sheet_name)][index] for item in descriptions)
         for index in range(len(labels))
@@ -503,7 +522,7 @@ def _stacked_description_bars(
         key = (item.dataset_id, item.sheet_name)
         segment = values[key]
         color = colors[key]
-        style = {"color": color, "label": _description_label(item), "edgecolor": "white", "linewidth": 0.25}
+        style = {"color": color, "label": _description_label(item, visual), "edgecolor": "white", "linewidth": 0.25}
         bars = (ax.barh(labels, segment, left=offsets, **style) if horizontal
                 else ax.bar(labels, segment, bottom=offsets, **style))
         visible = [
@@ -532,16 +551,22 @@ def _stacked_description_bars(
         ax.set_ylim(0, maximum * 1.15 if maximum else 1)
     ax.grid(axis="x" if horizontal else "y", alpha=0.22)
     ax.set_axisbelow(True)
-    ax.legend(title="Архівний опис", frameon=False, fontsize=8,
+    ax.legend(title=visual.text("Архівний опис"), frameon=False, fontsize=8,
               loc="lower center", bbox_to_anchor=(0.5, 1.02),
               ncol=min(len(descriptions), 3))
 
 
-def _category_dataset_label(dataset: Dataset, descriptions: list[Description]) -> str:
+def _category_dataset_label(dataset: Dataset, descriptions: list[Description],
+                            visual: Visualization | None = None) -> str:
     """One legend entry per workbook, listing all its fonds and inventories."""
+    visual = visual or Visualization()
     groups: dict[tuple[str, str], list[str]] = defaultdict(list)
     for item in descriptions:
         groups[(item.archive.strip(), item.fond.strip())].append(item.inventory or item.sheet_name)
+    if visual.language == "en":
+        return "\n".join(fill(visual.reference(archive or visual.dataset(dataset.id, dataset.short_label, short=True), fond,
+                                            ", ".join(dict.fromkeys(numbers))), 60)
+                         for (archive, fond), numbers in groups.items()) or visual.dataset(dataset.id, dataset.short_label, short=True)
     return "\n".join(
         f"{archive + ', ' if archive else ''}ф. {fond}, оп. {', '.join(dict.fromkeys(numbers))}"
         if fond else f"{archive or dataset.short_label}, оп. {', '.join(dict.fromkeys(numbers))}"
@@ -553,8 +578,10 @@ def _category_panel(
     ax, descriptions: list[Description],
     categories: list[Category], counts: dict[tuple[str, str, str], int],
     colors: dict[tuple[str, str], str], dataset_total: int, maximum: float,
+    visual: Visualization | None = None,
 ) -> None:
     """Stack inventory shares in one bar per category for one workbook."""
+    visual = visual or Visualization()
     from matplotlib.colors import to_rgb
 
     offsets = [0.0] * len(categories)
@@ -582,7 +609,9 @@ def _category_panel(
             formatted_cases = f"{cases:,}".replace(",", " ")
             ax.text(total + max(maximum * 0.014, 0.15), index,
                     f"{total:.1f}% ({formatted_cases})", va="center", fontsize=8)
-    ax.set_yticks(range(len(categories)), [category.label for category in categories])
+    ax.set_yticks(range(len(categories)), [category.label if visual.language == "uk" else
+                 fill(visual.label("categories", category.id, category.label), 44)
+                 for category in categories])
     ax.set_xlim(0, maximum * 1.28 if maximum else 1)
     ax.grid(axis="x", alpha=0.22)
     ax.set_axisbelow(True)
@@ -592,16 +621,22 @@ def _category_figure(
     datasets: list[Dataset], descriptions: list[Description],
     categories: list[Category], counts: dict[tuple[str, str, str], int],
     colors: dict[tuple[str, str], str], dataset_totals: dict[str, int],
+    visual: Visualization | None = None,
 ):
     """Adjacent workbook panels share a percentage scale and one grouped legend."""
+    visual = visual or Visualization()
     import matplotlib.pyplot as plt
     from matplotlib.legend_handler import HandlerTuple
     from matplotlib.patches import Patch
 
     columns = min(len(datasets), 2)
     rows = (len(datasets) + columns - 1) // columns
+    label_lines = sum(fill(visual.label("categories", c.id, c.label), 44).count("\n") + 1
+                      for c in categories)
     fig, axes = plt.subplots(rows, columns, sharex=True, sharey=True, squeeze=False,
-                             figsize=(max(11, 8.4 * columns), max(6.8, 5.4 * rows)))
+                             figsize=(max(11, (9.5 if visual.bilingual else 8.4) * columns),
+                                      max(6.8, 5.4 * rows) if visual.language == "uk" else
+                                      max(6.8, rows * (label_lines * 0.27 + 2.5))))
     maximum = max((
         sum(counts[(item.dataset_id, item.sheet_name, category.id)]
             for item in descriptions if item.dataset_id == dataset.id)
@@ -614,21 +649,21 @@ def _category_figure(
         ax = axes.flat[index]
         subset = [item for item in descriptions if item.dataset_id == dataset.id]
         _category_panel(ax, subset, categories, counts, colors,
-                        dataset_totals[dataset.id], maximum)
-        ax.set_title(dataset.short_label, loc="left", fontsize=11)
+                        dataset_totals[dataset.id], maximum, visual)
+        ax.set_title(visual.dataset(dataset.id, dataset.short_label, short=True), loc="left", fontsize=11)
         if index % columns:
             ax.tick_params(axis="y", left=False, labelleft=False)
         handles.append(tuple(Patch(facecolor=colors[(item.dataset_id, item.sheet_name)])
                              for item in subset) or (Patch(facecolor="#999999"),))
-        labels.append(_category_dataset_label(dataset, subset))
+        labels.append(_category_dataset_label(dataset, subset, visual))
     for ax in axes.flat[len(datasets):]:
         ax.set_visible(False)
     axes[0][0].invert_yaxis()
-    fig.suptitle("Тематичні категорії за описами", fontsize=14, y=0.99)
+    fig.suptitle(visual.text("Тематичні категорії за описами"), fontsize=14, y=0.99)
     fig.legend(handles, labels, handler_map={tuple: HandlerTuple(ndivide=None, pad=0.05)},
                loc="upper center", bbox_to_anchor=(0.55, 0.96), ncol=columns,
                frameon=False, fontsize=9, handlelength=2.2)
-    fig.supxlabel("Частка справ відповідного файлу з категорією, %")
+    fig.supxlabel(visual.text("Частка справ відповідного файлу з категорією, %"))
     fig.subplots_adjust(left=0.23 if columns == 2 else 0.35,
                         right=0.98, top=0.79, bottom=0.11,
                         wspace=0.12, hspace=0.33)
@@ -639,8 +674,11 @@ def _description_chronology_panel(
     ax, dataset: Dataset, descriptions: list[Description], years: list[int],
     yearly: dict[tuple[str, str, int], int], colors: dict[tuple[str, str], str],
     description_totals: dict[tuple[str, str], int],
+    visual: Visualization | None = None,
 ) -> None:
     from matplotlib.ticker import PercentFormatter
+
+    visual = visual or Visualization()
 
     subset = [item for item in descriptions if item.dataset_id == dataset.id]
     for item in subset:
@@ -650,14 +688,15 @@ def _description_chronology_panel(
                   for year in years]
         ax.plot(years, values,
                 color=colors[key], linewidth=1.7,
-                label=_description_label(item))
-    ax.set_title(f"{dataset.short_label} — 100% для кожного опису окремо",
+                label=_description_label(item, visual))
+    ax.set_title(f"{visual.dataset(dataset.id, dataset.short_label, short=True)} — "
+                 f"{visual.text('100% для кожного опису окремо')}",
                  loc="left", fontsize=10)
-    ax.set_ylabel("Частка справ опису, %")
+    ax.set_ylabel(visual.text("Частка справ опису, %"))
     ax.set_ylim(0, 100)
     ax.yaxis.set_major_formatter(PercentFormatter(xmax=100))
     ax.grid(alpha=0.22)
-    ax.legend(title=_fond_summary(subset), fontsize=8, title_fontsize=8,
+    ax.legend(title=_fond_summary(subset, visual), fontsize=8, title_fontsize=8,
               frameon=False, loc="lower center", bbox_to_anchor=(0.5, 1.13),
               ncol=min(len(subset), 3))
 
@@ -668,11 +707,13 @@ def create_charts(
     descriptions: list[Description],
     categories: list[Category],
     analysis: dict[str, Any],
+    visual: Visualization | None = None,
 ) -> list[str]:
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    visual = visual or Visualization()
     figures_dir.mkdir(parents=True, exist_ok=True)
     plt.rcParams.update({"font.family": "DejaVu Sans", "axes.titlesize": 13, "axes.labelsize": 10})
     palette = ["#2F6690", "#D17A22", "#548C2F", "#805D93", "#A23B72", "#2A9D8F"]
@@ -681,11 +722,14 @@ def create_charts(
 
     def save_chart(fig, filename: str) -> None:
         fig.savefig(figures_dir / filename, dpi=180, bbox_inches="tight")
+        with plt.rc_context({"svg.fonttype": "none"}):
+            fig.savefig(figures_dir / Path(filename).with_suffix(".svg"), bbox_inches="tight")
         plt.close(fig)
         created.append(filename)
 
     overview = analysis["overview"]
-    labels = [row["short_label"] for row in overview]
+    labels = [visual.dataset(row["dataset_id"], row["short_label"], short=True)
+              for row in overview]
     if descriptions:
         description_sizes = {
             (row["dataset_id"], row["sheet_name"]): row["analyzable_titles"]
@@ -697,10 +741,10 @@ def create_charts(
             {(item.dataset_id, item.sheet_name): [
                 description_sizes[(item.dataset_id, item.sheet_name)] if item.dataset_id == dataset.id else 0
                 for dataset in datasets
-            ] for item in descriptions}, colors,
+            ] for item in descriptions}, colors, visual=visual,
         )
-        ax.set_title("Обсяг порівнюваних масивів за описами", pad=75)
-        ax.set_xlabel("Кількість заголовків справ")
+        ax.set_title(visual.text("Обсяг порівнюваних масивів за описами"), pad=75)
+        ax.set_xlabel(visual.text("Кількість заголовків справ"))
         fig.tight_layout()
         save_chart(fig, "dataset_sizes.png")
 
@@ -721,11 +765,11 @@ def create_charts(
                 color=palette[index % len(palette)],
                 linewidth=1.8,
             )
-            ax.set_title(dataset.short_label, loc="left", fontsize=10)
-            ax.set_ylabel("Справ")
+            ax.set_title(visual.dataset(dataset.id, dataset.short_label, short=True), loc="left", fontsize=10)
+            ax.set_ylabel(visual.text("Справ"))
             ax.grid(alpha=0.22)
-        axes[-1][0].set_xlabel("Рік")
-        fig.suptitle("Хронологічний розподіл справ", fontsize=13)
+        axes[-1][0].set_xlabel(visual.text("Рік"))
+        fig.suptitle(visual.text("Хронологічний розподіл справ"), fontsize=13)
         fig.tight_layout()
         save_chart(fig, "chronology.png")
 
@@ -745,10 +789,10 @@ def create_charts(
         for index, dataset in enumerate(datasets):
             _description_chronology_panel(
                 axes[index][0], dataset, descriptions, years, yearly, colors,
-                description_totals,
+                description_totals, visual,
             )
-        axes[-1][0].set_xlabel("Рік")
-        fig.suptitle("Хронологія описів у кожному порівнюваному масиві", fontsize=13, y=1.04)
+        axes[-1][0].set_xlabel(visual.text("Рік"))
+        fig.suptitle(visual.text("Хронологія описів у кожному порівнюваному масиві"), fontsize=13, y=1.04)
         fig.tight_layout(h_pad=2.5)
         save_chart(fig, "chronology_by_description.png")
 
@@ -766,14 +810,14 @@ def create_charts(
             subset = [item for item in descriptions if item.dataset_id == dataset.id]
             ax = axes[index][0]
             _stacked_description_bars(
-                ax, [label for _, label in states], subset,
+                ax, [visual.text(label) for _, label in states], subset,
                 {(item.dataset_id, item.sheet_name): [
                     by_description[(item.dataset_id, item.sheet_name)][key] for key, _ in states
-                ] for item in subset}, colors, horizontal=False,
+                ] for item in subset}, colors, horizontal=False, visual=visual,
             )
-            ax.set_title(dataset.short_label, loc="left")
-            ax.set_ylabel("Кількість справ")
-        fig.suptitle("Покриття класифікацією за окремими описами", fontsize=13)
+            ax.set_title(visual.dataset(dataset.id, dataset.short_label, short=True), loc="left")
+            ax.set_ylabel(visual.text("Кількість справ"))
+        fig.suptitle(visual.text("Покриття класифікацією за окремими описами"), fontsize=13)
         fig.tight_layout()
         save_chart(fig, "classification_coverage.png")
 
@@ -784,7 +828,7 @@ def create_charts(
     if category_parts:
         dataset_totals = {row["dataset_id"]: row["analyzable_titles"] for row in analysis["overview"]}
         fig = _category_figure(datasets, descriptions, categories, category_parts,
-                               colors, dataset_totals)
+                               colors, dataset_totals, visual)
         save_chart(fig, "categories.png")
     if analysis.get("document_types") and datasets:
         import numpy as np
@@ -793,19 +837,24 @@ def create_charts(
         matrix = np.array([[values.get((d.id, kind.id))
                             if values.get((d.id, kind.id)) is not None else np.nan
                             for d in datasets] for kind in DOCUMENT_TYPES])
-        fig, ax = plt.subplots(figsize=(max(9, len(datasets) * 1.6 + 5), 9))
+        label_lines = sum(fill(visual.label("document_types", kind.id, kind.label), 44).count("\n") + 1
+                          for kind in DOCUMENT_TYPES)
+        fig, ax = plt.subplots(figsize=(max(9, len(datasets) * 1.6 + (7 if visual.bilingual else 5)),
+                                       9 if visual.language == "uk" else max(9, label_lines * 0.3)))
         cmap = plt.get_cmap("Blues").copy()
         cmap.set_bad("#dddddd")
         heat = ax.imshow(matrix, aspect="auto", vmin=0, vmax=100, cmap=cmap)
-        ax.set_xticks(range(len(datasets)), [d.short_label for d in datasets], rotation=30, ha="right")
-        ax.set_yticks(range(len(DOCUMENT_TYPES)), [kind.label for kind in DOCUMENT_TYPES])
+        ax.set_xticks(range(len(datasets)), [visual.dataset(d.id, d.short_label, short=True) for d in datasets], rotation=30, ha="right")
+        ax.set_yticks(range(len(DOCUMENT_TYPES)), [kind.label if visual.language == "uk" else
+                      fill(visual.label("document_types", kind.id, kind.label), 44)
+                      for kind in DOCUMENT_TYPES])
         for i in range(len(DOCUMENT_TYPES)):
             for j in range(len(datasets)):
                 value = matrix[i, j]
                 ax.text(j, i, "—" if np.isnan(value) else f"{value:.1f}", ha="center", va="center",
                         color="white" if value > 55 else "#202020", fontsize=9)
-        ax.set_title("Згадки типів документів, % заголовків масиву", pad=16)
-        fig.colorbar(heat, ax=ax, label="Частка заголовків, %")
+        ax.set_title(visual.text("Згадки типів документів, % заголовків масиву"), pad=16)
+        fig.colorbar(heat, ax=ax, label=visual.text("Частка заголовків, %"))
         fig.tight_layout()
         save_chart(fig, "document_types.png")
     return created
@@ -838,7 +887,9 @@ def write_html_report(
     analysis: dict[str, Any],
     chart_files: list[str],
     issues: list[Issue],
+    visual: Visualization | None = None,
 ) -> None:
+    visual = visual or Visualization()
     overview = analysis["overview"]
     issue_counts = Counter(issue.level for issue in issues)
     cards = "".join(
@@ -856,8 +907,8 @@ def write_html_report(
         "document_types.png": "Згадки типів документів: частка заголовків кожного масиву, %",
     }
     charts = "".join(
-        f"<figure><img src='figures/{html.escape(filename)}' alt='{html.escape(chart_titles.get(filename, filename))}'>"
-        f"<figcaption>{html.escape(chart_titles.get(filename, filename))}</figcaption></figure>"
+        f"<figure><img src='figures/{html.escape(filename)}' alt='{html.escape(visual.text(chart_titles.get(filename, filename)))}'>"
+        f"<figcaption>{html.escape(visual.text(chart_titles.get(filename, filename)))}</figcaption></figure>"
         for filename in chart_files
     )
     top_vocabulary = [row for row in analysis["vocabulary"] if row["type"] == "Характерна" and row["rank"] <= 15]
@@ -891,7 +942,7 @@ figure{{margin:20px 0;background:white;border:1px solid var(--line);padding:14px
 <p class="lead">Лексичні згадки у заголовках, а не перевірений склад документів усередині справ. Один тип враховано один раз на заголовок; сума часток може перевищувати 100%. Порожня частка означає відсутність придатних заголовків.</p>
 {_html_table([('dataset','Масив'),('document_type','Тип документа'),('titles_total','Заголовків (100%)'),('titles_with_type','Зі згадкою'),('percent_of_titles','Частка, %'),('per_1000_titles','На 1000')], analysis['document_types'])}
 <h2>Зв’язки між темами справ</h2>
-<p><a href="figures/theme_links.html">Відкрити інтерактивну мережу співкласифікації</a></p>
+<p><a href="figures/theme_links.html">{html.escape(visual.text("Відкрити інтерактивну мережу співкласифікації"))}</a></p>
 <p class="lead">Оберіть масив або опис. Положення вузлів та шкала товщини ліній однакові для всіх масивів. Для вибраної пари показано зіставлення всіх масивів, вихідні кількості, частоту на 1000 заголовків і lift. Повний реєстр пар міститься в CSV та Excel.</p>
 <h2>Характерна лексика</h2>
 {_html_table([('dataset','Масив'),('rank','Місце'),('term','Термін'),('titles','Заголовків'),('percent_of_titles','Частка, %')], top_vocabulary)}
@@ -908,13 +959,23 @@ def write_manifest(
     datasets: list[Dataset],
     dictionary_version: str,
     output_files: list[Path],
+    visual: Visualization | None = None,
 ) -> None:
+    visual = visual or Visualization()
     inputs = [dataset.path for dataset in datasets]
     payload = {
         "status": "complete",
         "script_version": __version__,
         "dictionary_version": dictionary_version,
         "document_type_rules_version": DOCUMENT_TYPE_RULES_VERSION,
+        "visualization": visual.metadata(),
+        "presentation_sha256": {
+            name: hashlib.sha256((base_dir / name).read_bytes()).hexdigest()
+            for name in ("src/visualization.py", "config/visualization.en.json",
+                         "config/analysis.yaml", "src/templates/theme_links.html",
+                         "src/reports.py", "src/comparative_profiles.py")
+            if (base_dir / name).is_file()
+        },
         "completed_at": datetime.now().isoformat(timespec="seconds"),
         "python": platform.python_version(),
         "datasets": [

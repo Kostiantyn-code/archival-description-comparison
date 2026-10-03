@@ -8,7 +8,7 @@
 
 A local Python tool for comparative chronological, thematic, and lexical
 analysis of archival finding aids stored in Excel workbooks. It produces XLSX
-and CSV tables, PNG charts, a JSON run manifest, and a self-contained HTML
+and CSV tables, PNG/SVG charts, a JSON run manifest, and a self-contained HTML
 report without sending research data to external services.
 
 Development version: `0.3.0.dev0`; latest release: `v0.2.0`.
@@ -47,7 +47,7 @@ change if source rows are reordered.
 - document-form mentions: counts, percentages and mentions per 1,000 titles;
 - category and macroblock co-classification: counts, rates per 1,000 and lift,
   with an offline network selector and cross-dataset table for each selected pair;
-- XLSX, CSV, HTML, PNG, and JSON output;
+- XLSX, CSV, HTML, PNG, SVG, and JSON output;
 - entirely local processing.
 
 ## Requirements and quick start
@@ -113,6 +113,52 @@ provide annual counts, classification states, and thematic categories per
 worksheet. Category tables give both the worksheet and workbook denominators.
 The main bar charts show absolute counts with each bar stacked from its descriptions;
 the aggregate chronology and workbook panels with overlaid inventories remain separate plots.
+
+## Visualization language
+
+Ukrainian remains the default. For English illustrations, change
+[`config/analysis.yaml`](config/analysis.yaml):
+
+```yaml
+visualization:
+  language: en             # uk (default) or en
+  bilingual_labels: true   # false: translation only; true: English (original)
+  label_overrides:
+    datasets:
+      dataset_a: "Reconstructed documentary collection"
+    dataset_short:
+      dataset_a: "Collection A"
+    archives:
+      "Назва архіву": "Archive name"
+    descriptions:
+      "dataset_a:Опис 1": "Archive name, fond 230: inventory 1"
+```
+
+This localizes titles, axes, legends and category labels in all six static
+charts, their HTML captions and links, and the theme network's interface,
+nodes and scope selector. In English mode, `bilingual_labels` appends original
+thematic labels and proper names in parentheses. Interface captions and
+structural reference terms use only the selected language. Analysis,
+dictionaries, CSV/XLSX, the main HTML tables, case titles and source references
+in network examples retain their original data.
+
+Researcher-supplied dataset and archive names require explicit translations.
+`datasets` and `dataset_short` use IDs from `datasets.yaml` or `overview.csv`;
+short labels fall back to the `datasets` translation when no separate short
+translation is provided. `archives` uses exact source archive names.
+`descriptions` overrides an inventory reference in individual legends and the
+network selector, using `dataset_id:sheet_name`. The category chart's grouped
+legend uses archive/fond/inventory metadata. Arbitrary sheet names remain
+unchanged; generated names `Опис N` become `Inventory N` in the network.
+Unknown labels retain their original text.
+
+The presentation catalog [`config/visualization.en.json`](config/visualization.en.json)
+is separate from analytical dictionaries. Overrides also support `categories`,
+`category_short`, `macroblocks`, `macroblock_short` and `document_types` by
+stable ID. The run manifest records language settings and presentation source
+hashes. Each chart is saved as PNG and SVG with text labels; SVG supports
+scaling and editing for journal illustrations. Both formats follow
+`reports.charts`; the HTML report displays each chart once.
 
 ## Document types and theme links
 

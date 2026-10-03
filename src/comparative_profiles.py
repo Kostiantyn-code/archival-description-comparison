@@ -8,11 +8,13 @@ from __future__ import annotations
 import html
 import json
 from collections import Counter, defaultdict
+from copy import deepcopy
 from itertools import combinations
 from pathlib import Path
 
 from .document_types import DOCUMENT_TYPES, match_document_types
 from .models import Category, Dataset, Description, Record
+from .visualization import Visualization
 
 
 SCOPE_COLUMNS = [
@@ -170,9 +172,38 @@ def build_comparative_profiles(
     return result
 
 
-def write_theme_network(path: Path, network: dict) -> None:
+def write_theme_network(
+    path: Path, network: dict, visual: Visualization | None = None,
+    datasets: list[Dataset] | None = None, descriptions: list[Description] | None = None,
+) -> None:
+    visual = visual or Visualization()
     template = Path(__file__).parent / "templates" / "theme_links.html"
-    payload = json.dumps(network, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
-    page = template.read_text(encoding="utf-8").replace("__SCOPE__", html.escape("Порівняння логічних масивів"))
+    displayed = network
+    if visual.language == "en":
+        displayed = deepcopy(network)  # Keep analytical data and original labels immutable.
+        meta = displayed["meta"]
+        meta["bilingual"] = visual.bilingual
+        for field, group in (("cat", "categories"), ("short", "category_short"),
+                             ("block", "macroblocks"), ("blockShort", "macroblock_short")):
+            meta[field] = {key: visual.label(group, key, label) for key, label in meta[field].items()}
+        if datasets is not None and descriptions is not None:
+            scope_labels, dataset_labels = [], []
+            for dataset in datasets:
+                label = visual.dataset(dataset.id, dataset.label)
+                scope_labels.append(label)
+                dataset_labels.append(label)
+                for item in descriptions:
+                    if item.dataset_id == dataset.id:
+                        key = f"{dataset.id}:{item.sheet_name}"
+                        reference = visual.inventory_reference(key, item.archive, item.fond,
+                                                               item.inventory, item.reference)
+                        scope_labels.append(f"{label} / {visual.inventory_name(item.sheet_name)} ({reference})")
+            if len(scope_labels) != len(meta["scopes"]) or len(dataset_labels) != len(meta["datasets"]):
+                raise ValueError("Network source metadata does not match the analytical scopes")
+            meta["scopes"] = [[key, label] for (key, _), label in zip(meta["scopes"], scope_labels)]
+            meta["datasets"] = [[key, label] for (key, _), label in zip(meta["datasets"], dataset_labels)]
+    payload = json.dumps(displayed, ensure_ascii=False, separators=(",", ":")).replace("<", "\\u003c")
+    page = visual.template(template.read_text(encoding="utf-8")).replace(
+        "__SCOPE__", html.escape(visual.text("Порівняння логічних масивів")))
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(page.replace("__DATA__", payload), encoding="utf-8")
