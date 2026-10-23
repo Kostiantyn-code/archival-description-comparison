@@ -1,11 +1,11 @@
-"""Тематична класифікація заголовків справ на основі словників."""
+'Dictionary-based subject classification of case titles.'
 from __future__ import annotations
 
 import re
 from pathlib import Path
 from typing import Any
 
-from .configuration import safe_load_yaml as _load_yaml
+from .loader import safe_load_yaml as _load_yaml
 from .models import CATEGORY_RULE_FIELDS, Category, Record
 from .text_matching import (
     MATCH_LANGUAGE,
@@ -22,26 +22,34 @@ def load_language_dictionaries(
 ) -> tuple[list[Category], list[dict[str, Any]], dict[str, str], str]:
     index_path = base_dir / "config" / "categories.yaml"
     index = _load_yaml(index_path, yaml_module)
+    if language not in {"uk", "ru"}:
+        raise ValueError(f"Unsupported analysis language: {language}; use uk or ru")
+    pack = _load_yaml(base_dir / "dictionaries" / f"{language}.yaml", yaml_module)
+    if pack.get("language") != language:
+        raise ValueError(f"Dictionary language does not match {language}")
+    rules = {item["id"]: item for item in pack["categories"]}
+    expected = {item["id"] for item in index["categories"]}
+    if (len(rules) != len(pack["categories"]) or len(expected) != len(index["categories"])
+            or set(rules) != expected):
+        raise ValueError(f"Dictionary category IDs do not match categories.yaml: {language}")
     categories: list[Category] = []
-    for item in index.get("categories", []):
+    for item in index["categories"]:
         if not item.get("enabled", True):
             continue
-        dictionary_path = base_dir / item["dictionaries"][language]
-        data = _load_yaml(dictionary_path, yaml_module)
+        data = rules[item["id"]]
         categories.append(Category(
             id=str(data["id"]),
             label=str(item["label"]),
-            macroblock=str(data["macroblock"]),
+            macroblock=str(item["macroblock"]),
             minimum_score=int(data.get("minimum_score", index.get("classification", {}).get("minimum_score", 3))),
             **{field: list(data.get(field, [])) for field in CATEGORY_RULE_FIELDS},
         ))
-    ambiguity_path = base_dir / "dictionaries" / ("ru" if language == "ru" else "") / "auxiliary" / "ambiguities.yaml"
-    ambiguities = _load_yaml(ambiguity_path, yaml_module).get("rules", []) if ambiguity_path.exists() else []
+    ambiguities = pack.get("ambiguities", [])
     macroblocks = {
         key: str(value.get("label", key))
         for key, value in index.get("macroblocks", {}).items()
     }
-    return categories, ambiguities, macroblocks, str(index.get("dictionary_version", "невідома"))
+    return categories, ambiguities, macroblocks, str(index.get("dictionary_version", "unknown"))
 
 
 def _global_masks(tokens: list[str], category_id: str, ambiguities: list[dict[str, Any]]) -> list[str]:
@@ -72,6 +80,8 @@ def classify_title(
     macroblock_order: list[str],
     language: str,
 ):
+    if language not in {"uk", "ru"}:
+        raise ValueError(f"Unsupported analysis language: {language}; use uk or ru")
     language_token = MATCH_LANGUAGE.set(language)
     try:
         original_tokens = stem_tokens(title)
@@ -92,9 +102,9 @@ def classify_title(
 
             weak_evidence: list[str] = []
             for items, label in (
-                (category.context_only_phrases, "фраза"),
-                (category.context_only_terms, "термін"),
-                (category.contextual_terms, "контекст"),
+                (category.context_only_phrases, 'phrase'),
+                (category.context_only_terms, 'term'),
+                (category.contextual_terms, 'context'),
             ):
                 weak_evidence.extend(f"{label}: {item}" for item in items if matches(item))
             if weak_evidence:
@@ -105,9 +115,9 @@ def classify_title(
             score = 0
             category_evidence: list[str] = []
             for items, weight, label in (
-                (category.strong_phrases, 4, "фраза"),
-                (category.strong_terms, 3, "термін"),
-                (category.contextual_terms, 1, "контекст"),
+                (category.strong_phrases, 4, 'phrase'),
+                (category.strong_terms, 3, 'term'),
+                (category.contextual_terms, 1, 'context'),
             ):
                 for item in items:
                     if matches(item):
@@ -122,16 +132,16 @@ def classify_title(
                         for value in rule.get(key, [])
                         if matches(str(value))
                     )
-                    category_evidence.append(f"правило: {readable}")
+                    category_evidence.append(f"rule: {readable}")
 
             for ambiguity in ambiguities:
                 term = str(ambiguity.get("term", ""))
                 contexts = ambiguity.get("conditional", {}).get(category.id, [])
                 if term and contexts and matches(term) and any(matches(str(item)) for item in contexts):
                     score += 3
-                    category_evidence.append(f"контекст неоднозначного терміна: {term}")
+                    category_evidence.append(f"ambiguity context: {term}")
 
-            has_subject = any(not item.startswith("контекст:") for item in category_evidence)
+            has_subject = any(not item.startswith("context:") for item in category_evidence)
             if score >= category.minimum_score and (language != "ru" or has_subject):
                 matched_ids.append(category.id)
                 labels.append(category.label)
@@ -176,8 +186,8 @@ def classify_records(
     total = len(active)
     section_results: dict[tuple[str, str], tuple] = {}
     for index, record in enumerate(active, start=1):
-        categories = language_categories.get(record.language, language_categories["uk"])
-        ambiguities = language_ambiguities.get(record.language, language_ambiguities["uk"])
+        categories = language_categories[record.language]
+        ambiguities = language_ambiguities[record.language]
         (
             record.categories,
             record.category_labels,
@@ -211,7 +221,7 @@ def classify_records(
                     record.categories.append(category_id)
                     record.category_labels.append(label)
                     record.scores[category_id] = section_scores[category_id]
-                    record.evidence[category_id] = [f"розділ опису: {record.thematic_section}"]
+                    record.evidence[category_id] = [f"inventory section: {record.thematic_section}"]
             ordered = sorted(zip(record.categories, record.category_labels),
                              key=lambda pair: (-record.scores[pair[0]], pair[1]))
             record.categories = [pair[0] for pair in ordered]

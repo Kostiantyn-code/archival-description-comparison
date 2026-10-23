@@ -11,7 +11,7 @@ from openpyxl import load_workbook
 
 from src.analysis import build_analysis
 from src.comparative_profiles import REPORT_COLUMNS, build_comparative_profiles, write_theme_network
-from src.document_types import match_document_types
+from src.comparative_profiles import match_document_types
 from src.models import Category, Dataset, Description, Record
 from src.reports import write_csv_reports, write_html_report, write_workbook
 
@@ -112,7 +112,7 @@ class ComparativeProfileTests(unittest.TestCase):
             page = path.read_text()
             self.assertNotIn(self.records[0].title, page)
             payload = page.split('id="tl-data">')[1].split('</script>')[0]
-            self.assertEqual(json.loads(payload), network)
+            self.assertEqual(json.loads(payload), network | {"meta": network["meta"] | {"bilingual": False}})
 
     def test_new_tables_export_with_headers_even_without_evidence(self):
         analysis = build_analysis(BASE, self.datasets, self.descriptions, [], self.categories,
@@ -126,8 +126,8 @@ class ComparativeProfileTests(unittest.TestCase):
                     self.assertEqual(reader.fieldnames, [key for key, _ in columns])
             write_workbook(root / "comparison.xlsx", self.datasets, self.descriptions, [], [], self.categories, analysis)
             book = load_workbook(root / "comparison.xlsx", read_only=True)
-            self.assertIn("Зв’язки тем", book.sheetnames)
-            self.assertIn("Типи документів", book.sheetnames)
+            self.assertIn("Theme links", book.sheetnames)
+            self.assertIn("Document types", book.sheetnames)
             book.close()
             write_html_report(root / "report.html", self.datasets, analysis, [], [])
             self.assertIn('href="figures/theme_links.html"', (root / "report.html").read_text())

@@ -1,4 +1,4 @@
-"""Нормалізація та зіставлення UK/RU без читання або зміни файлів."""
+"""UK/RU normalization and matching without file access."""
 from __future__ import annotations
 
 import re
@@ -50,8 +50,7 @@ def normalize_text(text: str) -> str:
 
 def tokenize(text: str) -> list[str]:
     normalized = normalize_text(text)
-    # У джерелі складні слова інколи набрано з пробілами біля дефіса:
-    # «військово- морський». Для зіставлення це те саме складне слово.
+    # Treat compounds with spaces around a hyphen as the same compound word.
     normalized = re.sub(
         r"(?<=[A-Za-zА-Яа-яІіЇїЄєҐґЁё])\s*-\s*"
         r"(?=[A-Za-zА-Яа-яІіЇїЄєҐґЁё])",
@@ -189,7 +188,7 @@ def find_phrase_positions(tokens: list[str], phrase: list[str]) -> list[int]:
 
 
 def item_matcher(tokens: list[str]):
-    """Індекс одного заголовка після маскування; кеш діє лише для цієї категорії."""
+    """Index one masked title; this cache belongs to one category."""
     language = MATCH_LANGUAGE.get()
     words = {part for token in tokens for part in (token, *token.split("-"))}
     phrases: dict[int, set[tuple[str, ...]]] = {}
@@ -237,7 +236,7 @@ def normalize_case_id(value: str) -> str:
     return result
 
 
-# Легкий стемінг, НЕ повна лематизація. Мовні кеші ізольовано.
+# Light stemming, not full lemmatization; each language has its own cache.
 RU_ENDINGS = sorted({
     "иями", "иям", "ием", "ией", "ие", "ия", "ии", "ями", "ами", "ого", "ему", "ому", "ыми", "ими", "иях",
     "ов", "ев", "ей", "ам", "ям", "ах", "ях", "ом", "ем", "ий", "ый",
@@ -265,7 +264,7 @@ def russian_stem_word(word: str) -> str:
 
 
 def detect_title_language(title: str) -> str:
-    """Контрольна евристика; власні назви не змінюють налаштування аркуша."""
+    """Heuristic language vote; proper names do not override worksheet settings."""
     tokens = tokenize(title)
     uk = sum(bool(re.search("[іїєґ]", w)) for w in tokens)
     ru = sum(bool(re.search("[ыэёъ]", w)) for w in tokens)

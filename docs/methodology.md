@@ -1,190 +1,182 @@
-# Методичні примітки
+# Methodology and reproducibility
 
-## Рівні агрегації
+This tool compares **finding-aid titles**, not the full texts of archival documents.
+Its categories and lexical indicators are exploratory and require corpus-specific
+manual evaluation before supporting substantive historical claims.
 
-1. Рядок Excel — окрема справа або службовий запис.
-2. Аркуш Excel — окремий архівний опис.
-3. Книга Excel — логічний масив, який порівнюється з іншими книгами.
+## Units and input recovery
 
-Ця модель дозволяє об'єднати описи одного фондоутворювача, навіть якщо вони
-зберігаються у різних архівах і мають різні номери фондів.
+A workbook is one dataset and a worksheet is one inventory. A dataset can combine
+inventories belonging to different archives or fonds. Archive, fond and inventory
+metadata are read separately from each worksheet. Source rows are identified by
+`dataset_id:sheet_name:row-N`; repeated case numbers stay distinct, but reordering
+rows changes these IDs.
 
-Порівняльні частки на рівні книги залишаються агрегованими. Кожен стовпчик
-діаграм обсягу, категорій та класифікації складається із сегментів за описами.
-Для кожної категорії книги показано на сусідніх панелях зі спільною шкалою;
-в межах кожної панелі стовпчик складається із сегментів описів. Спільна
-легенда містить один пункт на книгу з переліком її фондів та описів.
-Описи одного архіву й фонду мають відтінки одного кольору; якщо
-книга містить кілька фондів, кожен фонд має окрему гаму. У хронології на одну
-книгу припадає одна панель із накладеними рядами всіх її описів і спільною
-віссю років. На графіку 100% для кожного опису — кількість усіх аналізованих
-справ саме цього опису. Кожна річна точка показує частку справ опису за рік
-від загальної кількості справ цього ж опису; усі накладені ряди мають спільну
-шкалу 0–100%. Таблиці містять вихідні кількості справ.
-Справу з діапазоном дат зараховано до кожного року діапазону за
-тим самим правилом, що й у загальному ряді книги, тому сума річних відсотків
-може перевищувати 100%.
+The loader expects five fixed columns: case number, title, inclusive dates,
+leaf count, notes. It recognizes English, Ukrainian and Russian metadata/header
+labels and searches the first 25 rows for the header. Metadata are scanned in the
+first 15 rows. Spreadsheet values are read with `data_only=True`, so input formulas
+require cached values; plain text is preferable. Dates are interpreted as years
+1700–2099 within configured bounds, not as full normalized dates. A single numeric
+leaf count is accepted; ambiguous counts are left blank and logged.
 
-## Мова опису
+Blank rows and repeated headers are skipped. Year headings can supply a year to
+following cases, and a case number shifted into a year-heading row can be joined
+to the next title. Dates or leaf counts beside a year heading can fill missing
+fields in the preceding case. Unnumbered rows are generally headings; only the
+supported shifted-row pattern creates a synthetic case number. These rules do
+not recover every malformed worksheet. Review `issues.csv`, record counts and
+source rows before analysis. Withdrawn cases, inventory entries and empty titles
+do not contribute to analytical denominators.
 
-Для класифікації використовується одна мова на весь аркуш. Якщо в метаданих
-вказано `Мова | ru` або `Мова | uk`, вона має пріоритет. Інакше програма
-визначає мову за першими 100 заголовками після шапки таблиці: кожний упевнено
-розпізнаний заголовок дає два голоси, а короткі заголовки з однозначними
-словами — один. За рівного числа голосів обирається `uk`. Це правило
-узгоджене зі скриптом `archival-description-analysis`; окремий заголовок зі
-змішаною мовою не перемикає словник для всього опису.
+## Language and dictionary format
 
-## Частки тематичних категорій
+`Language | uk` or `Language | ru` applies to the entire worksheet. Ukrainian and
+Russian metadata equivalents are accepted. Without metadata, the first 100 titles
+after the header vote: a confidently identified title contributes two votes;
+selected diagnostic words in otherwise undetermined titles contribute one.
+A tie selects Ukrainian. Mixed-language titles do not switch dictionaries.
+Set the language explicitly for short or mixed corpora.
 
-Знаменник — кількість непорожніх заголовків справ у логічному масиві.
-Чисельник — кількість заголовків, яким присвоєно відповідну категорію. Оскільки
-класифікація множинна, сума часток усіх категорій може перевищувати 100%.
+There are 12 shared category IDs and four macroblocks in `config/categories.yaml`.
+English labels are canonical; Ukrainian report labels are in
+`config/localization.json`. Each `dictionaries/{uk,ru}.yaml` contains:
 
-Знаменник обчислюється окремо для кожного логічного масиву. Розмір інших
-фондів або загальна кількість справ у всіх завантажених книгах на частку не
-впливають.
+| Field | Meaning |
+|---|---|
+| `language` | Analysis language, `uk` or `ru` |
+| `categories` | Rules keyed by the shared category `id` |
+| `ambiguities` | Cross-category masking and conditional rules |
+| `stopwords` | Lexical-analysis exclusions; not classification exclusions |
 
-У таблиці `categories_by_description.csv` наведено і частку від усіх справ
-масиву, і частку від усіх справ конкретного опису. На складеній діаграмі
-категорій кожен сегмент дорівнює кількості відповідних справ опису, поділеній
-на загальну кількість аналізованих справ **свого файлу**; довжина стовпчика
-дорівнює сумі часток описів. Абсолютну кількість зазначено в підписі.
-Через множинну класифікацію сума часток різних категорій може перевищувати 100%.
+Within a category, `strong_phrases` contribute 4 points, `strong_terms` 3 and
+`contextual_terms` 1. Co-occurrence `context_rules` have an explicit score
+(default 3); a satisfied ambiguity condition adds 3. The usual assignment
+threshold (`minimum_score`) is 3. `context_only_phrases` and `context_only_terms`
+record context without adding subject scores. Contextual terms also appear in
+context evidence. In Russian, context-only score accumulation cannot by itself
+assign a subject category: at least one non-context item is required.
+`exclude_phrases` and ambiguity masks suppress matches before scoring.
+`review_terms` flag near-threshold cases. Multiple matching aliases can contribute
+separate points; do not deduplicate them without evaluating the resulting scores.
+Light stemming is heuristic, not full lemmatization; UK/RU caches are separate.
 
-## Покриття класифікацією
+The `personal_files` category describes documentation type rather than a subject.
+It can co-occur with a subject, for example education or policing. Explicit
+personnel-file/list section headings can supply categories to name-only titles;
+letter/year headings preserve that section, while a new substantive heading ends
+it. Inherited evidence is marked `inventory section` and the original heading is
+retained in `records.csv`. A personal name alone does not assign this category.
 
-Усі аналізовані справи кожного логічного масиву розподіляються між трьома
-взаємовиключними станами:
+The two packs retain the existing `0.8-draft` weighted rules. They share category
+IDs, but their terms and weights were curated independently. They are not the
+English-reference concept packs of the related
+[analysis repository](https://github.com/Kostiantyn-code/archival-description-analysis).
+**This comparison tool does not yet classify English, Croatian or Italian titles.**
+An English report does not imply an English or cross-language semantic classifier.
 
-1. `Тематично класифіковано` — присвоєно щонайменше одну предметну категорію.
-2. `Лише контекст` — предметної категорії немає, але виявлено контекстну
-   згадку особи, установи або середовища.
-3. `Не класифіковано` — не визначено ні предметної, ні контекстної категорії.
+## Counts and denominators
 
-Сума кількостей і часток цих трьох станів дорівнює відповідно загальній
-кількості аналізованих справ масиву та 100% (із можливою похибкою округлення).
+An analyzable record has status `case` and a nonempty title. Dataset category
+shares divide category counts by all analyzable titles in that workbook, including
+unclassified titles. Inventory tables provide both inventory and dataset shares;
+stacked category-chart segments use the workbook denominator. Multiple categories
+can apply to one title, so their shares can sum to more than 100%.
 
-## Подібність
+Classification coverage has three exclusive states: subject classified;
+context only (no subject category); unclassified (neither subject nor context).
+Their counts sum to the number of analyzable titles, and shares sum to 100% apart
+from rounding. Empty coverage tables use zero shares; document-form and network
+rates instead use blank values when their denominator is absent.
 
-Заголовки подаються як символьні n-грами довжиною 3–5 символів, зважені за
-TF-IDF. Для кожної пари логічних масивів менший масив використовується як набір
-запитів, а більший — як корпус пошуку. До результату потрапляють лише пари,
-що перевищили налаштований поріг.
+With `chronology.expansion_mode: span`, a dated case contributes to every year of
+its inclusive range, up to `maximum_span_years`; otherwise only its start year is
+used. A range exceeding that maximum also contributes only to its start year.
+The aggregate chronology shows counts. Each overlaid inventory series divides
+annual counts by all analyzable titles of that inventory; annual shares can sum
+to more than 100% because a case can span several years.
 
-Цей показник слід трактувати як інструмент навігації до можливих паралельних
-джерел, а не як доказ тотожності змісту справ.
+## Vocabulary and title similarity
 
-## Лексичний аналіз
+Vocabulary counts document frequency: a stem counts at most once per title.
+Both language packs' stopword stems are excluded, as are numbers and very short
+words. Frequent terms are ranked by their title share. Distinctive terms use
+`share × (log((1 + number_of_datasets)/(1 + datasets_containing_term)) + 1)`;
+"containing" uses the configured minimum document frequency. Displayed terms are
+the most frequent observed surface form of a stem. Shared vocabulary requires
+the minimum frequency in every dataset. These are lexical comparisons, not
+translation or aligned multilingual concept frequencies.
 
-Частотна лексика ранжується за часткою заголовків масиву, у яких трапляється
-термін. Характерна лексика додатково враховує рідкість терміна в інших масивах.
-Українські й російські стоп-слова вилучаються перед підрахунком.
+Similarity uses character-within-word TF-IDF n-grams (default 3–5), `min_df=2`,
+sublinear term frequency and cosine nearest neighbours. For each dataset pair,
+titles from the smaller dataset query the larger one. Up to `matches_per_case`
+neighbours above `minimum_score` are retained for each query; the final table is
+limited to 2,000 pairs. A corpus with no shared retained n-grams yields an empty
+table. Similarity is not symmetric exhaustive pair retrieval and does not establish
+identity, historical equivalence or translation between languages.
 
-## Тематичні словники
+## Document forms and theme co-classification
 
-Класифікація використовує українські й російські словники та контекстні
-правила. Їхня повнота безпосередньо впливає на покриття класифікацією. Тому
-списки некласифікованих справ призначені не лише для контролю результатів, а й
-для обґрунтованого поповнення словників або виділення нових категорій.
+Fifteen document-form regexes are maintained alongside comparative profiles in
+`src/comparative_profiles.py`. Patterns originate from `archival-description-analysis`
+commit `c4a772c`, rules version `0.1-draft`; consolidation changes their labels to
+English, not their patterns. Each form counts once per title, independently of
+subject categories and worksheet language. Generic “case concerning” headings do
+not create a type. `document_type_mentions` retains matched wording and source
+coordinates. A mention does not verify which documents are inside the case.
 
-Категорія «Особові справи та персональний облік» належить до окремого блоку
-«Тип документації» й описує тип документації:
-іменні справи, картки й поіменні списки. Вона може поєднуватися з предметною
-категорією, наприклад «Право, суд і поліція» для справ ув’язнених або «Освіта»
-для списку учнів. Категорія не присвоюється за одним лише прізвищем чи за
-назвою фонду.
+For each dataset and inventory, type rates use all analyzable titles:
+`percent = mentions/N × 100`; `per_1000 = mentions/N × 1000`. Zero indicates that
+there are titles but no match. With no titles, counts are zero and rates blank.
 
-Якщо в аркуші є окремий службовий заголовок «Особові справи…» або «Списки
-учнів/працівників…», він діє до наступного змістового заголовка. Підзаголовки
-з роком або літерою алфавіту його не переривають. Програма класифікує справи
-під таким заголовком за словами розділу; джерело успадкованої категорії
-позначається у стовпці «Підстави класифікації», а назва розділу записується в
-`records.csv` і на аркуші «Справи» файлу `comparison.xlsx`. Заголовок «Особові
-справи ув’язнених» дає обидві категорії; просто «Особові справи» дає тільки
-категорію персональної документації. Для особових справ службовців порту чи
-військової частини предметну категорію додають лише явні ознаки її теми.
+Only assigned subject categories form network pairs; context-only categories
+are excluded. Categories are deduplicated, then mapped to distinct macroblocks.
+Three categories create three unordered pairs; two categories of the same block
+do not create a block self-loop. For N titles, marginals A and B, and shared S:
 
-Словники походять із проєкту
-[`archival-description-analysis`](https://github.com/Kostiantyn-code/archival-description-analysis)
-і мають власний номер версії, який записується до `run_manifest.json`.
+- shared frequency per 1,000 = `S/N × 1000`;
+- lift = `S × N/(A × B)`.
 
-## Відтворюваність і конфіденційність
+For N=100, A=20, B=25 and S=10, the rate is 100 per 1,000 and lift is 2.
+If A and B are nonzero but S=0, lift is zero. If A or B is zero, lift is undefined
+(blank). All pairs, including zero-count pairs, are exported. Inventory counts
+reconcile with dataset counts; lift is recomputed at each level, not averaged.
+`theme_link_cases` identifies the contributing physical rows.
 
-Маніфест кожного запуску містить версію програми, версію словників, контрольні
-суми SHA-256 вхідних книг та перелік створених файлів. Це дозволяє перевірити,
-якими саме даними й правилами отримано результат.
+The offline network uses fixed node positions and shared metric scales. It shows
+up to 24 category pairs or six block pairs. Lift view additionally requires
+`max(3, ceil(N × 0.0015))` shared titles. These filters affect display only.
+Examples show the first three contributing cases; complete evidence is in tables.
+Lift is descriptive, not a significance test or evidence of causality; rare pairs
+can have unstable high lift. Normalizing rates does not remove differences in
+description detail, chronology, creator functions or dictionary coverage.
 
-Аналіз виконується локально. Програма не використовує зовнішні API та не
-передає заголовки справ або інші дані через мережу.
+## Presentation, provenance and validation
 
-## Порівняння типів документів
+CLI messages are English. Reports default to English; Ukrainian is selectable through
+`visualization.language`. CSV field names and generated labels remain English
+regardless of report language. XLSX/HTML captions and figures follow the setting.
+Dataset/archive names are source values unless an explicit `label_overrides`
+translation is supplied. UI templates contain explicit caption markers, rendered
+before source values are embedded; titles are never passed through a translation
+replacement. The network escapes JSON `<` characters and HTML table values are
+escaped. Text cells in exported XLSX are stored as text, including titles starting
+with `=`. Installation downloads dependencies; analysis and generated reports
+require no remote services.
 
-Правила `src/document_types.py` перенесено без зміни з
-`archival-description-analysis`, commit `c4a772c`, версія правил `0.1-draft`.
-Вони шукають українські й російські лексичні згадки 15 типів документів.
-Цей шар незалежний від тематичної класифікації та визначення мови аркуша.
-Слово «рапорт» означає згадку у заголовку, а не підтверджену наявність
-окремого рапорту всередині справи. Загальні формули «Справа про» та «Дело о»
-не утворюють типу. Тематична категорія персональної документації залишається
-частиною наявної класифікації, а не додається до лексичних типів автоматично.
+`run_manifest.json` records input SHA-256 hashes, analytical and presentation
+source hashes, dictionary/rule versions, Python/dependency versions, report-language
+settings and output paths. Keep the exact input workbooks, source checkout and
+configuration together for reproduction. Requirements allow compatible version
+ranges; the manifest records the actual installed versions.
 
-Знаменник `titles_total` — усі записи з `Record.analyzable`: статус `case`
-і непорожній заголовок, включно з некласифікованими. Один тип враховується
-один раз на заголовок; один заголовок може мати кілька типів, тому сума
-відсотків може перевищувати 100%. `titles_with_type` — чисельник,
-`percent_of_titles = titles_with_type / titles_total × 100`,
-`per_1000_titles = titles_with_type / titles_total × 1000`.
-На рівні опису знаменником є заголовки тільки цього аркуша.
-
-Таблиці мають однакові 15 типів у кожному масиві й описі. Нуль означає,
-що заголовки є, але тип не знайдено. За порожнього корпусу кількості дорівнюють
-нулю, частки лишаються порожніми (Python `None`, JSON `null`).
-`document_type_mentions` містить вираз-підставу, заголовок, архівні реквізити,
-файл, аркуш і рядок. Версію правил зафіксовано в маніфесті.
-
-## Мережа співкласифікації
-
-Мережа використовує вже визначені предметні категорії `record.categories`,
-включно з обґрунтовано успадкованими від тематичного розділу. Контекстні
-категорії не беруть участі. Категорії та блоки обчислюються окремо (`cat` і
-`block`): блоки виводяться з предметних категорій за спільним словником,
-повторення усуваються. Дві категорії одного блоку не створюють петлі цього
-блоку. Три різні категорії однієї справи утворюють три неупорядковані пари.
-
-Для кожного масиву (та окремо опису) обчислюються:
-
-- `titles_total = N`: усі придатні заголовки, включно з некласифікованими;
-- `theme_a_titles = A`, `theme_b_titles = B`: кількість заголовків із кожною темою;
-- `shared_titles = S`: заголовки з обома темами;
-- `shared_per_1000_titles = S / N × 1000`;
-- `relative_frequency = S × N / (A × B)`: lift, відношення спостереженої
-  кількості до очікуваної за незалежного розподілу міток.
-
-Приклад: N=100, A=20, B=25, S=10 дає 100 спільних заголовків на 1000 і lift=2.
-За A>0, B>0 і S=0 lift=0; за A=0 або B=0 lift невизначений і поле порожнє.
-За N=0 частота на 1000 також невизначена. Показники зберігаються числами,
-округленими до шести знаків; вихідні кількості дозволяють їх перерахувати.
-
-У CSV/XLSX включено всі неупорядковані пари спільної таксономії для кожного
-масиву/опису, навіть якщо спільних заголовків немає. Це довгий формат, який
-працює для довільної кількості масивів. `theme_link_cases` містить одну
-строку на фізичний запис, рівень і пару, без дублювання за рівнями агрегації.
-Сума кількостей описів дорівнює кількості масиву; lift обчислюється заново
-на відповідному рівні, а не усереднюється між описами.
-
-Інтерактивна мережа має сталий порядок вузлів, розмір вузла за часткою
-заголовків та спільну для всіх виборів шкалу ліній кожного показника.
-Типовий режим — частота на 1000. Для читабельності показано до 24 пар
-категорій і до 6 пар блоків. У режимі lift додатково застосовується поріг
-max(3, ceil(N × 0,0015)) спільних справ. Фільтри впливають лише на екран,
-усі пари зберігаються у таблицях. Приклади показують перші три справи;
-повний реєстр доступний у `theme_link_cases`. Таблиця вибраної пари
-порівнює всі масиви, зберігаючи нульові та невизначені значення.
-
-Lift — описовий показник, а не тест статистичної значущості чи причинності.
-Високі значення за малих кількостей нестійкі. Частоти залежать від повноти
-словників, докладності заголовків і покриття класифікацією; нормування на
-1000 не усуває відмінностей хронології чи компетенції фондоутворювачів.
-Різні архіви та фонди всередині масиву зберігають власні реквізити на рівні
-опису і справи. Термінологічна динаміка та географія до цього розширення не входять.
+The cleanup baseline is main commit `901f451`. Regression checks cover unchanged
+rules and 3,900 deterministic UK/RU decisions derived from dictionary terms,
+phrases, co-occurrence rules and ambiguity contexts, both alone and with a
+correspondence prefix. A separate three-workbook/four-inventory trial includes
+empty data, shifted rows, duplicate numbers, mixed archives and unsafe HTML text:
+17 records, eight similar pairs and eight validation messages. Counts, category
+sets/scores, evidence terms and analytical metrics are compared independently of
+translated labels. Tests also run complete English/Ukrainian/bilingual reports,
+check CSV invariance and parse generated network JavaScript. These checks establish
+regression parity, **not independently measured linguistic accuracy**.

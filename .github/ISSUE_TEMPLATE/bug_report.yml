@@ -1,45 +1,45 @@
-name: Повідомлення про помилку
-description: Допоможіть відтворити й виправити проблему
+name: Bug report
+description: Help reproduce and fix a problem
 title: "[Bug]: "
 labels: [bug]
 body:
   - type: textarea
     id: description
     attributes:
-      label: Опис проблеми
-      description: Що сталося і якої поведінки ви очікували?
+      label: Problem description
+      description: What happened and what did you expect?
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Як відтворити
-      description: Наведіть послідовність дій і команду запуску.
+      label: Steps to reproduce
+      description: Include the steps and command used.
     validations:
       required: true
   - type: input
     id: python
     attributes:
-      label: Версія Python
+      label: Python version
       placeholder: "Python 3.12.7"
     validations:
       required: true
   - type: input
     id: os
     attributes:
-      label: Операційна система
+      label: Operating system
       placeholder: "Windows 11 / Ubuntu 24.04 / macOS"
     validations:
       required: true
   - type: textarea
     id: log
     attributes:
-      label: Повідомлення про помилку
+      label: Bug report
       render: shell
   - type: checkboxes
     id: privacy
     attributes:
-      label: Перевірка даних
+      label: Data check
       options:
-        - label: Приклад не містить архівних даних з обмеженим доступом або персональних даних.
+        - label: The example contains no restricted archival records or personal data.
           required: true

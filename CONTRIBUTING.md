@@ -1,35 +1,19 @@
-# Як долучитися до проєкту
+# Contributing
 
-Дякуємо за інтерес до `archival-description-comparison`. Повідомлення про
-помилки, пропозиції до словників і зміни коду можна подавати через GitHub
-Issues та Pull Requests.
+Open an Issue or Pull Request with the problem, expected behaviour and a minimal
+example. For input problems, include the Python version, operating system,
+command and a small anonymized workbook layout. Do not publish restricted records
+or personal data in examples.
 
-## Повідомлення про помилку
-
-Додайте:
-
-- версію Python та операційну систему;
-- команду або спосіб запуску;
-- повний текст помилки;
-- мінімальний знеособлений приклад структури книги, якщо проблема стосується
-  читання Excel.
-
-Не публікуйте в Issue архівні дані з обмеженим доступом або персональні дані.
-
-## Локальна перевірка змін
+Run before submitting:
 
 ```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python -m compileall -q main.py src tests
-.venv/bin/python -m unittest discover -s tests -v
+python -m compileall -q main.py src tests
+python -m unittest discover -s tests -v
 ```
 
-Нову поведінку бажано супроводжувати тестом. Зміни формату результатів слід
-також описати у `CHANGELOG.md` та документації.
-
-## Зміни словників
-
-Для нового або зміненого терміна вкажіть мову, категорію, приклад заголовка і
-пояснення очікуваної класифікації. Не додавайте конфіденційні заголовки справ
-як тестові дані.
+For dictionary changes, give the language, category ID, example title and expected
+result. Preserve weighted aliases unless their removal has been evaluated: two
+similar forms can contribute separate scores. Update `dictionary_version` in
+`config/categories.yaml` when rules change. Describe format changes in
+`CHANGELOG.md`; see [methodology](docs/methodology.md).

@@ -53,5 +53,15 @@ class SimilarityTests(unittest.TestCase):
         self.assertIn("училища", rows[0]["title_a"] + rows[0]["title_b"])
 
 
+    def test_empty_shared_vocabulary_and_disabled_matches_return_empty_tables(self):
+        datasets = [Dataset(key, key, key, "", Path(key + ".xlsx")) for key in ("left", "right")]
+        for titles in (("аааааа", "яяяяяя"), ("!", "?")):
+            with self.subTest(titles=titles):
+                self.assertEqual(similarity_rows(datasets,
+                    [record(d, "1", title) for d, title in zip(datasets, titles)], {}), [])
+        self.assertEqual(similarity_rows(datasets,
+            [record(d, "1", "Листування про школу") for d in datasets], {"matches_per_case": 0}), [])
+
+
 if __name__ == "__main__":
     unittest.main()

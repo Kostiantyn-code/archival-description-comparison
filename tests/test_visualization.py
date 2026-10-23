@@ -20,10 +20,10 @@ import main
 from src.analysis import build_analysis
 from src.classification import classify_records, load_language_dictionaries
 from src.comparative_profiles import write_theme_network
-from src.document_types import DOCUMENT_TYPES
+from src.comparative_profiles import DOCUMENT_TYPES
 from src.loader import load_all
-from src.reports import _description_label
-from src.visualization import Visualization, english_catalog
+from src.charts import _description_label
+from src.localization import Visualization, catalog
 
 
 BASE = Path(__file__).resolve().parents[1]
@@ -77,7 +77,7 @@ def workbook_cells(path: Path) -> dict:
 class VisualizationTests(unittest.TestCase):
     def test_defaults_validation_overrides_and_original_fallback(self):
         self.assertEqual(Visualization.from_config({}).metadata(),
-                         {"language": "uk", "bilingual_labels": False, "label_overrides": {}})
+                         {"language": "en", "bilingual_labels": False, "label_overrides": {}})
         invalid = [None, [], {"language": "de"}, {"bilingual_labels": "false"},
                    {"label_overrides": []}, {"label_overrides": {"datasets": {"a": 1}}}]
         for options in invalid:
@@ -95,25 +95,25 @@ class VisualizationTests(unittest.TestCase):
 
     def test_catalog_covers_current_taxonomy_and_document_types(self):
         categories, _, blocks, _ = load_language_dictionaries(BASE, yaml, "uk")
-        catalog = english_catalog()
+        translated = catalog()["uk_labels"]
         for group, keys in (("categories", [c.id for c in categories]),
                             ("category_short", [c.id for c in categories]),
                             ("macroblocks", blocks), ("macroblock_short", blocks),
                             ("document_types", [kind.id for kind in DOCUMENT_TYPES])):
-            self.assertTrue(set(keys) <= set(catalog[group]), group)
-            self.assertTrue(all(not re.search("[А-Яа-яІіЇїЄєҐґ]", catalog[group][key]) for key in keys))
+            self.assertTrue(set(keys) <= set(translated[group]), group)
+        self.assertTrue(all(not re.search("[А-Яа-яІіЇїЄєҐґ]", c.label) for c in categories))
 
     def test_template_localization_is_complete_and_context_safe(self):
         source = (BASE / "src/templates/theme_links.html").read_text(encoding="utf-8")
-        self.assertEqual(Visualization().template(source), source)
+        self.assertNotIn("{{ui:", Visualization().template(source))
         translated = Visualization("en").template(source)
         self.assertIn('lang="en"', translated)
         self.assertIn("en-GB", translated)
         self.assertIsNone(re.search("[А-Яа-яІіЇїЄєҐґ]", translated))
         # Translation strings containing quotes/markup must not break JS or HTML.
         hostile = '</script>\'` ${alert(1)} & "'
-        with patch("src.visualization.english_catalog", return_value={"ui": {"Масив": hostile}}):
-            page = Visualization("en").template('<p>Масив</p><script>const x="Масив";</script>')
+        with patch("src.localization.ukrainian_captions", return_value={"Dataset": hostile}):
+            page = Visualization("uk").template('<p>{{ui:Dataset}}</p><script>const x="{{ui:Dataset}}";</script>')
         self.assertIn("&lt;/script&gt;", page)
         self.assertEqual(page.count("</script>"), 1)
         self.assertIn(r"\u0024", page)
@@ -121,7 +121,7 @@ class VisualizationTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("node"), "Node.js is optional; needed for generated JavaScript syntax check")
     def test_localized_network_javascript_parses(self):
         source = (BASE / "src/templates/theme_links.html").read_text(encoding="utf-8")
-        for visual in (Visualization(), Visualization("en"), Visualization("en", True)):
+        for visual in (Visualization("uk"), Visualization("en"), Visualization("en", True)):
             script = re.findall(r"<script>(.*?)</script>", visual.template(source), re.S)[0]
             result = subprocess.run([shutil.which("node"), "--check"], input=script,
                                     text=True, capture_output=True)
@@ -140,7 +140,7 @@ class VisualizationTests(unittest.TestCase):
                                       {"similarity": {"enabled": False}}, blocks)
             original = deepcopy((analysis, datasets, descriptions, records, categories))
             network = analysis["theme_network"]
-            for visual in (Visualization(), Visualization("en", False, OVERRIDES),
+            for visual in (Visualization("uk"), Visualization("en", False, OVERRIDES),
                            Visualization("en", True, OVERRIDES)):
                 path = root / "theme_links.html"
                 write_theme_network(path, network, visual, datasets, descriptions)
@@ -152,9 +152,7 @@ class VisualizationTests(unittest.TestCase):
                 for field in ("scopes", "datasets"):
                     self.assertEqual([key for key, _ in displayed["meta"][field]],
                                      [key for key, _ in network["meta"][field]])
-                if visual.language == "uk":
-                    self.assertEqual(displayed, network)
-                else:
+                if visual.language == "en":
                     self.assertIn("Inventory 1", displayed["meta"]["scopes"][1][1])
                     self.assertIn("Archive A", displayed["meta"]["scopes"][1][1])
                 self.assertNotIn('</script><img src=x', page)
@@ -166,7 +164,7 @@ class VisualizationTests(unittest.TestCase):
             self.assertTrue(any("Custom reference (" in label
                                 for _, label in payload(path.read_text())["meta"]["scopes"]))
 
-    def test_main_three_languages_preserve_csv_and_workbook_and_export_six_charts(self):
+    def test_report_languages_preserve_csv_and_localize_workbook_and_six_charts(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             inputs = root / "input"
@@ -175,14 +173,14 @@ class VisualizationTests(unittest.TestCase):
             base_config = yaml.safe_load((BASE / "config/analysis.yaml").read_text(encoding="utf-8"))
             snapshots = []
             titles = {
-                "dataset_sizes": "Обсяг порівнюваних масивів за описами",
-                "chronology": "Хронологічний розподіл справ",
-                "chronology_by_description": "Хронологія описів у кожному порівнюваному масиві",
-                "classification_coverage": "Покриття класифікацією за окремими описами",
-                "categories": "Тематичні категорії за описами",
-                "document_types": "Згадки типів документів, % заголовків масиву",
+                "dataset_sizes": "Size of compared datasets by inventory",
+                "chronology": "Chronological distribution of case files",
+                "chronology_by_description": "Inventory chronology within each compared dataset",
+                "classification_coverage": "Classification coverage by inventory",
+                "categories": "Thematic categories by inventory",
+                "document_types": "Document types mentioned, % of dataset titles",
             }
-            for mode, options in (("uk", None),
+            for mode, options in (("uk", {"language": "uk"}),
                                   ("en", {"language": "en", "label_overrides": OVERRIDES}),
                                   ("bilingual", {"language": "en", "bilingual_labels": True, "label_overrides": OVERRIDES})):
                 config = deepcopy(base_config)
@@ -201,14 +199,14 @@ class VisualizationTests(unittest.TestCase):
                 ))
                 manifest = json.loads((output / "run_manifest.json").read_text())
                 self.assertEqual(manifest["visualization"], Visualization.from_config(config).metadata())
-                self.assertIn("config/visualization.en.json", manifest["presentation_sha256"])
+                self.assertIn("config/localization.json", manifest["presentation_sha256"])
                 self.assertEqual(len(list((output / "figures").glob("*.png"))), 6)
                 self.assertEqual(len(list((output / "figures").glob("*.svg"))), 6)
                 self.assertEqual(sum(name.endswith(".svg") for name in manifest["outputs"]), 6)
                 visual = Visualization.from_config(config)
                 for stem, title in titles.items():
                     svg = (output / "figures" / f"{stem}.svg").read_text(encoding="utf-8")
-                    self.assertIn(visual.text(title), svg)
+                    self.assertTrue(visual.text(title) in svg, stem)
                     if mode == "en":
                         self.assertIsNone(re.search("[А-Яа-яІіЇїЄєҐґ]", svg), stem)
                 categories_svg = (output / "figures/categories.svg").read_text()
@@ -220,8 +218,12 @@ class VisualizationTests(unittest.TestCase):
                 if mode != "uk":
                     self.assertIn("Open the interactive co-classification network", html)
                     self.assertIn("Листування про відкриття школи", html)
-            self.assertEqual(snapshots[0], snapshots[1])
-            self.assertEqual(snapshots[0], snapshots[2])
+            # Machine exports are identical across presentation languages.
+            self.assertEqual(snapshots[0][0], snapshots[1][0])
+            self.assertEqual(snapshots[0][0], snapshots[2][0])
+            self.assertIn("Огляд", snapshots[0][1])
+            self.assertIn("Overview", snapshots[1][1])
+            self.assertIn("Overview", snapshots[2][1])
 
 
 if __name__ == "__main__":

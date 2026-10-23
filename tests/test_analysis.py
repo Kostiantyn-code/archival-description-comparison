@@ -149,7 +149,7 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(len(detail), 2)
         self.assertEqual(
             [item["classification_status"] for item in detail],
-            ["Лише контекст", "Не класифіковано"],
+            ["Context only", "Unclassified"],
         )
 
     def test_description_breakdowns_reconcile_with_workbook_totals(self):

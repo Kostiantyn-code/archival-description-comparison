@@ -87,7 +87,7 @@ class ClassificationTests(unittest.TestCase):
             self.assertFalse(first[2].categories)
             self.assertEqual(set(first[3].categories), {"personal_files", "education"})
             self.assertEqual(first[0].evidence["law_and_police"], [
-                "розділ опису: Особові справи ув’язнених"
+                "inventory section: Особові справи ув’язнених"
             ])
 
 
