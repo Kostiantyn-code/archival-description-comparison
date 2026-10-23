@@ -1,80 +1,51 @@
-# Історія змін
+# Changelog
 
-## Наступна версія
+## Unreleased
 
-- додано налаштування `visualization.language` (`uk` типово / `en`) для шести
-  графіків, їхніх HTML-підписів і мережі тем; аналітичні дані й словники незмінні;
-- додано двомовні тематичні мітки, ручні переклади назв масивів, архівів та
-  реквізитів описів, окремий англійський каталог і метадані мови в маніфесті;
-- статичні графіки також зберігаються у SVG з текстовими підписами;
-- додано перевірки однакових CSV/XLSX та чисел мережі у трьох мовних режимах.
-
-- об’єднано читання YAML, підрахунок станів класифікації, оцінку шапки
-  та запис графіків; прибрано невикористаний код і константи;
-- підсумкові таблиці групують записи за масивом/описом без повторного
-  сканування всього реєстру для кожного опису; формати й результати збережено;
-- додано [звіт аудиту й перевірки еквівалентності](docs/refactoring-audit.md).
-
-- додано порівняння згадок 15 типів документів: кількість, частка і частота на
-  1000 заголовків за масивами та описами, реєстр знайдених виразів;
-- додано співкласифікацію категорій і блоків: кількості, частоту на 1000 і lift,
-  реєстр справ-підстав, шість нових CSV та аркушів Excel, PNG типів документів;
-- автономна HTML-мережа має перемикач масивів/описів, спільні шкали та таблицю
-  вибраної пари в усіх масивах; порожні знаменники відрізняються від нулів;
-- `record_uid` тепер містить фізичний рядок Excel замість номера справи,
-  щоб повторені номери справ не спричиняли колізій; це зміна формату ID;
-- маніфест містить версію правил типів документів; додано тести змішаних
-  архівів і фондів в одному масиві та звіряння описів із підсумками масиву;
-- додано категорію особових справ і персонального обліку; тематичний заголовок
-  розділу зберігається після річних та алфавітних підзаголовків і може надати
-  предметну категорію записам, що складаються лише з імен;
-- словники розпізнають «право на проживання» та «портові збори»; службові
-  рядки «Опис № … фонду …» не входять до кількості аналізованих справ;
-- реєстр справ показує заголовок тематичного розділу і підстави класифікації;
-- хронологія за описами показує річну частку від усіх справ кожного опису
-  окремо; ряди одного файла накладено на спільній шкалі 0–100%;
-- тематичні категорії показано на сусідніх панелях із єдиною шкалою та спільною
-  легендою за файлами; описи одного фонду перелічено в одному пункті;
-- `run.bat` використовує середовище Python у профілі Windows між повторними
-  розпакуваннями проєкту й оновлює пакети лише після зміни `requirements.txt`;
-- додано окрему річну хронологію для кожного аркуша-опису з єдиною віссю років;
-- у графіку категорій фонди поставлено поруч, а описи складено всередині
-  кожного стовпчика; частки обчислено від справ кожної книги окремо;
-  у хронології описи кожної книги накладено на одній панелі;
-- стовпчики графіків обсягу, класифікації та категорій складено із сегментів
-  відповідних описів, як в оригінальному скрипті аналізу;
-- додано CSV й аркуші Excel для хронології, класифікації та категорій за описами;
-- для тематичних часток за описами явно показано знаменники опису й усього масиву;
-- збережено загальний хронологічний графік і порівняльні таблиці за книгами.
+- Consolidate 26 dictionary fragments and two stopword lists into `uk.yaml` and
+  `ru.yaml`, preserving weighted rules and category IDs.
+- Default to English, including CLI messages, workbook/HTML captions and generated
+  analytical labels; retain Ukrainian reports and bilingual figure labels.
+- Use explicit UI markers in HTML/JS templates, separate charts from table export,
+  and keep document-form rules with comparative profiles.
+- Recognize English and Russian worksheet headers/metadata; return empty similarity
+  tables when no shared n-grams survive; preserve formula-like XLSX strings as text.
+- Record analytical source hashes and installed dependency versions in manifests.
+- Merge the two READMEs into a shorter English-first/Ukrainian guide and consolidate
+  dictionary/audit documentation in the English methodology document.
+- Add regression checks against the pre-cleanup rules and 3,900 UK/RU decisions.
+- Include 15 document-form indicators and category/macroblock co-classification
+  with counts, rates per 1,000, lift and source evidence. The offline network uses
+  shared scales, dataset/inventory selection and cross-dataset comparison.
+- Use physical Excel rows in record IDs, retaining repeated case numbers separately.
+- Support personnel-file section inheritance and explicit classification evidence.
+- Add per-inventory chronology, coverage and category tables. Category panels share
+  a scale, with inventory segments and one grouped legend entry per workbook.
+- Export all six static figures as PNG and editable SVG.
+- Group records before summary counts; share YAML/header/classification helpers.
+- Reuse Windows Python environments between ZIP extractions; both launchers update
+  dependencies only after requirements change.
 
 ## 0.2.0 — 2026-09-22
 
-- підготовлено першу публічну версію окремого репозиторію;
-- додано документацію українською та англійською мовами;
-- додано `run.sh` для Linux і macOS та покращено `run.bat` для Windows;
-- додано GitHub Actions для Python 3.10, 3.12 і 3.13;
-- додано `CITATION.cff`, правила внесення змін і шаблони GitHub Issues;
-- конфігурацію масивів замінено нейтральним публічним прикладом;
-- виправлено створення маніфесту для вхідного каталогу поза папкою проєкту;
-- версію програми винесено до єдиного модуля `src`.
+- Prepare the first public standalone repository with bilingual documentation,
+  contribution guidance, citation metadata, an MIT license and issue templates.
+- Add Linux/macOS and improved Windows launchers.
+- Add GitHub Actions for Python 3.10, 3.12 and 3.13.
+- Replace dataset configuration with a neutral public example.
+- Allow input workbooks outside the project directory in run manifests.
+- Keep the software version in one module.
 
 ## 0.1.1
 
-- явно зафіксовано знаменник тематичних часток: усі аналізовані справи
-  відповідного логічного масиву;
-- додано таблицю й 100%-ву діаграму покриття тематичною класифікацією;
-- додано окремі списки справ без предметної теми та повністю
-  некласифікованих справ;
-- додано перевірки формул часток і взаємовиключності станів класифікації.
+- Make each dataset's analyzable titles the explicit denominator for category shares.
+- Add classification coverage and separate subject-unclassified/context-only lists.
+- Test percentage formulas and mutually exclusive classification states.
 
 ## 0.1.0
 
-- перша локальна тестова версія;
-- довільна кількість книг `input/*.xlsx`;
-- агрегування всіх аркушів книги як одного логічного масиву;
-- метадані архіву, фонду й опису на рівні аркуша;
-- тематична класифікація зі словниками проєкту 0.8;
-- хронологічне, лексичне й тематичне порівняння;
-- пошук подібних заголовків між різними книгами;
-- XLSX, CSV, HTML, PNG та журнал перевірки;
-- відновлення зміщених рядків навколо річних заголовків.
+- Initial local comparison of two or more multi-sheet XLSX workbooks.
+- Read archive/fond/inventory metadata per worksheet and recover supported shifted rows.
+- Classify titles with version 0.8 dictionaries; compare chronology, themes,
+  vocabulary and cross-dataset title similarity.
+- Export XLSX, CSV, HTML, PNG and validation logs.

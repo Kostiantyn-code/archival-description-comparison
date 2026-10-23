@@ -7,7 +7,8 @@ from pathlib import Path
 from openpyxl import Workbook, load_workbook
 
 from src.analysis import overview_rows
-from src.loader import load_all
+from src.loader import load_all, safe_load_yaml
+import yaml
 
 
 class LoaderTests(unittest.TestCase):
@@ -60,7 +61,7 @@ class LoaderTests(unittest.TestCase):
             self.assertEqual(record.title, "Листування про відкриття школи")
             self.assertEqual(record.start_year, 1918)
             self.assertEqual(record.pages, 10)
-            self.assertTrue(any(issue.field == "Зміщений рядок" for issue in issues))
+            self.assertTrue(any(issue.field == "Shifted row" for issue in issues))
 
     def test_one_dataset_keeps_distinct_archives_and_fonds(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -115,6 +116,50 @@ class LoaderTests(unittest.TestCase):
             _, descriptions, records, _ = load_all(root, {"datasets": []}, {})
             self.assertEqual(next(d.language for d in descriptions if d.file_name == "one.xlsx"), "ru")
             self.assertEqual(next(r.language for r in records if r.file_name == "one.xlsx"), "ru")
+
+
+    def test_config_and_dictionary_readers_accept_the_same_mapping(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.yaml"
+            path.write_text('name: "Миколаїв"\nrules: [школа, церква]\n', encoding="utf-8")
+            for reader in (safe_load_yaml,):
+                self.assertEqual(reader(path, yaml), {"name": "Миколаїв", "rules": ["школа", "церква"]})
+
+    def test_non_mapping_and_malformed_yaml_keep_their_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "config.yaml"
+            for reader in (safe_load_yaml,):
+                for content in ("", "- rule", "scalar", "null"):
+                    path.write_text(content, encoding="utf-8")
+                    with self.assertRaises(ValueError) as error:
+                        reader(path, yaml)
+                    self.assertEqual(str(error.exception), f"YAML root must be a mapping: {path}")
+                path.write_text("rules: [", encoding="utf-8")
+                with self.assertRaises(yaml.YAMLError):
+                    reader(path, yaml)
+
+
+    def test_english_and_russian_headers_preserve_metadata_and_source_titles(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for filename, headers, metadata in (
+                ("english", ["Case number", "Case title", "Inclusive dates", "Leaf count", "Notes"],
+                 [("Archive", "Source archive"), ("Fonds", "230"), ("Inventory", "2"), ("Language", "uk")]),
+                ("russian", ["№ дела", "Заголовок дела", "Крайние даты", "Количество листов", "Примечания"],
+                 [("Архив", "Архив"), ("Фонд", "356"), ("Опись", "1"), ("Язык", "ru")]),
+            ):
+                book = Workbook()
+                for row in metadata:
+                    book.active.append(row)
+                book.active.append(headers)
+                book.active.append(["17", "Листування про школу", "1850–1852", "12", "Source note"])
+                book.save(root / f"{filename}.xlsx")
+                book.close()
+            _, descriptions, records, _ = load_all(root, {"datasets": []}, {})
+            self.assertEqual([(d.archive, d.fond, d.inventory, d.language, d.header_row) for d in descriptions],
+                             [("Source archive", "230", "2", "uk", 5), ("Архив", "356", "1", "ru", 5)])
+            self.assertEqual([(r.case_id, r.title, r.start_year, r.end_year, r.pages) for r in records],
+                             [("17", "Листування про школу", 1850, 1852, 12)] * 2)
 
 
 if __name__ == "__main__":

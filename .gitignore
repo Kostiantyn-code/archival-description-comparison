@@ -5,7 +5,7 @@ __pycache__/
 .coverage
 output/
 input/*.xlsx
-!input/README.md
+!input/.gitkeep
 .idea/
 .vscode/
 .DS_Store

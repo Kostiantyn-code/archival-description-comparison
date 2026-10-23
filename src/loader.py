@@ -1,4 +1,4 @@
-"""Автоматичне читання багатoаркушевих книг архівних описів."""
+'Read multi-sheet workbooks of archival finding aids.'
 from __future__ import annotations
 
 import fnmatch
@@ -9,7 +9,6 @@ from typing import Any
 
 from openpyxl import load_workbook
 
-from .configuration import safe_load_yaml
 from .models import Dataset, Description, Issue, Record
 from .text_matching import clean_cell, detect_title_language, normalize_case_id, normalize_text, tokenize
 
@@ -41,7 +40,17 @@ HEADER_MARKERS = (
     "№ з/п",
     "№\\nз",
     "№ справ",
+    "заголовок дела", "заголовки дел", "крайние даты", "количество листов", "примечан",
+    "case number", "file number", "case title", "file title", "inclusive dates", "number of pages", "leaf count",
 )
+
+
+def safe_load_yaml(path: Path, yaml_module) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as stream:
+        data = yaml_module.safe_load(stream)
+    if not isinstance(data, dict):
+        raise ValueError(f"YAML root must be a mapping: {path}")
+    return data
 
 
 def discover_workbooks(input_dir: Path) -> list[Path]:
@@ -51,7 +60,7 @@ def discover_workbooks(input_dir: Path) -> list[Path]:
     )
     if len(files) < 2:
         raise ValueError(
-            f"Для порівняння потрібно щонайменше два *.xlsx у {input_dir}. Знайдено: {len(files)}"
+            f"Comparison requires at least two *.xlsx workbooks in {input_dir}; found {len(files)}"
         )
     return files
 
@@ -103,6 +112,8 @@ def _metadata(sheet) -> dict[str, str]:
         "опись": "inventory",
         "мова": "language",
         "язык": "language",
+        "archive": "archive", "fond": "fond", "fonds": "fond",
+        "inventory": "inventory", "language": "language",
     }
     known_rows = sheet.max_row if isinstance(sheet.max_row, int) else 15
     for row in range(1, min(known_rows, 15) + 1):
@@ -162,7 +173,7 @@ def _sheet_language(sheet, header_row: int, configured: str) -> str:
     if normalized.startswith("uk") or "укр" in normalized:
         return "uk"
     if normalized:
-        raise ValueError(f"{sheet.title}: невідома мова опису «{configured}»; використовуйте uk або ru")
+        raise ValueError(f"{sheet.title}: unsupported analysis language {configured!r}; use uk or ru")
 
     counts: Counter[str] = Counter()
     for row in sheet.iter_rows(
@@ -258,8 +269,8 @@ def read_sheet(
     reference = ", ".join(
         part for part in (
             archive,
-            f"ф. {fond}" if fond else "",
-            f"оп. {inventory}" if inventory else "",
+            f"fond {fond}" if fond else "",
+            f"inventory {inventory}" if inventory else "",
         ) if part
     )
     description = Description(
@@ -309,8 +320,8 @@ def read_sheet(
                 records[-1].pages = _parse_pages(records[-1].pages_raw)
                 issues.append(Issue(
                     "INFO", dataset.path.name, sheet.title, row,
-                    "Зміщений рядок", " | ".join(value for value in (dates, pages, notes) if value),
-                    f"Дати/аркуші перенесено до попередньої справи {records[-1].case_id}.",
+                    'Shifted row', " | ".join(value for value in (dates, pages, notes) if value),
+                    f"Moved dates/leaf count to the previous case {records[-1].case_id}.",
                 ))
             else:
                 carry_dates, carry_pages, carry_notes = dates, pages, notes
@@ -333,8 +344,8 @@ def read_sheet(
             records.append(record)
             issues.append(Issue(
                 "INFO", dataset.path.name, sheet.title, row,
-                "Зміщений рядок", pending_case_id,
-                f"Заголовок об'єднано з номером справи з рядка {pending_row}.",
+                'Shifted row', pending_case_id,
+                f"Joined the title to the case number from row {pending_row}.",
             ))
             pending_case_id = ""
             pending_row = None
@@ -352,7 +363,7 @@ def read_sheet(
                 ))
                 issues.append(Issue(
                     "WARNING", dataset.path.name, sheet.title, row,
-                    "Номер справи", "", "Створено службовий ідентифікатор для заголовка без номера.",
+                    'Case number', "", 'Created a service identifier for a title without a case number.',
                 ))
                 carry_dates = carry_pages = carry_notes = ""
             else:
@@ -375,21 +386,21 @@ def read_sheet(
             if not title:
                 issues.append(Issue(
                     "WARNING", dataset.path.name, sheet.title, row,
-                    "Заголовок справи", "", "Номер справи є, але заголовок відсутній.",
+                    'Case title', "", 'Case number present but title missing.',
                 ))
             continue
 
         issues.append(Issue(
             "WARNING", dataset.path.name, sheet.title, row,
-            "Структура рядка", " | ".join(value for value in values if value),
-            "Рядок не вдалося однозначно віднести до справи або службового заголовка.",
+            'Row structure', " | ".join(value for value in values if value),
+            'Could not identify the row as a case file or service heading.',
         ))
 
     if pending_case_id:
         issues.append(Issue(
             "WARNING", dataset.path.name, sheet.title, pending_row,
-            "Номер справи", pending_case_id,
-            "Після номера, зміщеного в рядок річного заголовка, не знайдено заголовок справи.",
+            'Case number', pending_case_id,
+            'No title follows the case number shifted into a year-heading row.',
         ))
 
     for record in records:
@@ -398,15 +409,15 @@ def read_sheet(
         if outside:
             issues.append(Issue(
                 "WARNING", dataset.path.name, sheet.title, record.excel_row,
-                "Крайні дати", record.dates_raw,
-                "Рік виходить за очікувані межі "
+                'Inclusive dates', record.dates_raw,
+                "Year outside the expected range "
                 f"{minimum_year}–{maximum_year}: " + ", ".join(map(str, outside)) + ".",
             ))
         if record.pages_raw and record.pages is None:
             issues.append(Issue(
                 "WARNING", dataset.path.name, sheet.title, record.excel_row,
-                "Кількість аркушів", record.pages_raw,
-                "Не вдалося однозначно визначити одне числове значення.",
+                'Leaf count', record.pages_raw,
+                'Could not identify a single numeric value.',
             ))
 
     occurrences: dict[str, list[Record]] = defaultdict(list)
@@ -417,8 +428,8 @@ def read_sheet(
         if len(duplicated) > 1:
             issues.append(Issue(
                 "WARNING", dataset.path.name, sheet.title, duplicated[0].excel_row,
-                "Номер справи", case_id,
-                "Номер повторюється у рядках " + ", ".join(str(item.excel_row) for item in duplicated) + ".",
+                'Case number', case_id,
+                "Case number repeated in rows " + ", ".join(str(item.excel_row) for item in duplicated) + ".",
             ))
     return description, records, issues
 
@@ -431,7 +442,7 @@ def load_all(
     files = discover_workbooks(input_dir)
     entries = dataset_config.get("datasets", [])
     if not isinstance(entries, list):
-        raise ValueError("config/datasets.yaml: datasets має бути списком")
+        raise ValueError("config/datasets.yaml: datasets must be a list")
 
     datasets: list[Dataset] = []
     descriptions: list[Description] = []
@@ -442,7 +453,7 @@ def load_all(
     for path in files:
         dataset = make_dataset(path, entries)
         if dataset.id in used_ids:
-            raise ValueError(f"Повторюється id логічного масиву: {dataset.id}")
+            raise ValueError(f"Duplicate dataset ID: {dataset.id}")
         used_ids.add(dataset.id)
         workbook = load_workbook(path, read_only=True, data_only=True)
         dataset_descriptions: list[Description] = []
@@ -460,7 +471,7 @@ def load_all(
         datasets.append(dataset)
         if not dataset.configured:
             issues.append(Issue(
-                "INFO", path.name, "", None, "Конфігурація масиву", dataset.label,
-                "Файл не має окремого запису в datasets.yaml; назву утворено з імені файла.",
+                "INFO", path.name, "", None, 'Dataset configuration', dataset.label,
+                'No entry in datasets.yaml; the dataset label comes from the filename.',
             ))
     return datasets, descriptions, records, issues

@@ -1,10 +1,10 @@
-## Що змінено
+## Change
 
-Коротко опишіть зміни та їхню мету.
+Describe the problem and resulting behaviour.
 
-## Перевірка
+## Validation
 
 - [ ] `python -m compileall -q main.py src tests`
 - [ ] `python -m unittest discover -s tests -v`
-- [ ] Оновлено документацію або `CHANGELOG.md`, якщо це потрібно
-- [ ] До коміту не потрапили робочі книги чи згенеровані звіти
+- [ ] Documentation and changelog updated where needed
+- [ ] No research workbooks or generated reports committed

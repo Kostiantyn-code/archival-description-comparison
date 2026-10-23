@@ -1,4 +1,4 @@
-"""Структури даних для порівняльного аналізу архівних описів."""
+'Data structures for comparative analysis of archival finding aids.'
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -112,9 +112,9 @@ class Record:
     def description_reference(self) -> str:
         parts = [self.archive]
         if self.fond:
-            parts.append(f"ф. {self.fond}")
+            parts.append(f"fond {self.fond}")
         if self.inventory:
-            parts.append(f"оп. {self.inventory}")
+            parts.append(f"inventory {self.inventory}")
         return ", ".join(part for part in parts if part)
 
     @property

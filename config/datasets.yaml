@@ -1,26 +1,13 @@
-schema_version: "1.0"
-
-# Один файл Excel = один логічний масив для порівняння.
-# Усі аркуші книги об'єднуються у візуалізаціях, але залишаються окремими
-# описами у контрольних таблицях.
-# Аркуші одного масиву можуть належати різним архівам і фондам.
-# Архів + Фонд + Опис читаються з метаданих кожного аркуша незалежно.
+# One workbook = one dataset; its worksheets remain separate inventories.
+# Metadata for each archive/fond/inventory is read from that worksheet.
 datasets: []
 
-# За потреби замініть порожній список записами такого виду:
+# Optional example: replace the empty list above with entries like these.
 # datasets:
-#   - pattern: "dataset_a.xlsx"
-#     id: dataset_a
-#     label: "Повна назва першого масиву"
-#     short_label: "Масив A"
-#     reference: "Архів, фонд, описи"
+#   - pattern: "collection_a.xlsx"
+#     id: collection_a
+#     label: "Reconstructed documentary collection"
+#     short_label: "Collection A"
+#     reference: "Archive, fond, inventories"
 #     minimum_year: 1800
 #     maximum_year: 1901
-#
-#   - pattern: "dataset_b.xlsx"
-#     id: dataset_b
-#     label: "Повна назва другого масиву"
-#     short_label: "Масив B"
-#     reference: "Архів, фонд, описи"
-#     minimum_year: 1917
-#     maximum_year: 1920

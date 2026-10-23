@@ -1,4 +1,4 @@
-"""Порівняльні показники, лексика та пошук подібних справ."""
+'Comparative metrics, vocabulary and case-title similarity.'
 from __future__ import annotations
 
 import math
@@ -8,6 +8,9 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any
 
+import yaml
+
+from .loader import safe_load_yaml
 from .models import Category, Dataset, Description, Record
 from .comparative_profiles import build_comparative_profiles
 from .text_matching import MATCH_LANGUAGE, light_stem_word, tokenize
@@ -153,8 +156,8 @@ def topic_unclassified_rows(records: list[Record]) -> list[dict[str, Any]]:
             "title": record.title,
             "dates_raw": record.dates_raw,
             "classification_status": (
-                "Лише контекст" if record.context_categories
-                else "Не класифіковано"
+                'Context only' if record.context_categories
+                else 'Unclassified'
             ),
             "context_categories": " | ".join(record.context_category_labels),
             "review_flags": " | ".join(record.review_flags),
@@ -304,7 +307,6 @@ def category_rows(
 ) -> list[dict[str, Any]]:
     grouped = _group_records(records, analyzable_only=True)
     rows: list[dict[str, Any]] = []
-    category_by_id = {category.id: category for category in categories}
     for dataset in datasets:
         active = grouped.get(dataset.id, [])
         counts = Counter(category_id for record in active for category_id in record.categories)
@@ -314,7 +316,7 @@ def category_rows(
                 "dataset": dataset.label,
                 "category_id": category.id,
                 "category": category.label,
-                "macroblock": category_by_id[category.id].macroblock,
+                "macroblock": category.macroblock,
                 "cases": counts[category.id],
                 "dataset_titles_total": len(active),
                 "percent_of_titles": round(_safe_percent(counts[category.id], len(active)), 2),
@@ -322,15 +324,11 @@ def category_rows(
     return rows
 
 
-def _read_stopwords(config_dir: Path) -> set[str]:
+def _read_stopwords(dictionary_dir: Path) -> set[str]:
     result: set[str] = set()
     for language in ("uk", "ru"):
-        path = config_dir / f"stopwords_{language}.txt"
-        words = {
-            line.strip().casefold()
-            for line in path.read_text(encoding="utf-8").splitlines()
-            if line.strip() and not line.lstrip().startswith("#")
-        }
+        pack = safe_load_yaml(dictionary_dir / f"{language}.yaml", yaml)
+        words = {word.strip().casefold() for word in pack["stopwords"]}
         language_token = MATCH_LANGUAGE.set(language)
         try:
             result.update(light_stem_word(word) for word in words)
@@ -361,10 +359,10 @@ def _document_terms(record: Record, stopword_stems: set[str]) -> tuple[set[str],
 def vocabulary_tables(
     datasets: list[Dataset],
     records: list[Record],
-    config_dir: Path,
+    dictionary_dir: Path,
     vocabulary_config: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    stopwords = _read_stopwords(config_dir)
+    stopwords = _read_stopwords(dictionary_dir)
     document_frequency: dict[str, Counter[str]] = {dataset.id: Counter() for dataset in datasets}
     surfaces: dict[str, Counter[str]] = defaultdict(Counter)
     document_totals: Counter[str] = Counter()
@@ -403,7 +401,7 @@ def vocabulary_tables(
             reverse=True,
         )[:limit]
         distinctive = sorted(scored, reverse=True)[:limit]
-        for kind, values in (("Частотна", top_frequency), ("Характерна", distinctive)):
+        for kind, values in (('Frequent', top_frequency), ('Distinctive', distinctive)):
             for rank, (score, stem, count) in enumerate(values, start=1):
                 vocabulary.append({
                     "dataset_id": dataset.id,
@@ -459,7 +457,8 @@ def similarity_rows(
     if not similarity_config.get("enabled", True):
         return []
     active = [record for record in records if record.analyzable]
-    if len(active) < 2:
+    per_case = int(similarity_config.get("matches_per_case", 3))
+    if len({record.dataset_id for record in active}) < 2 or per_case <= 0:
         return []
 
     from sklearn.feature_extraction.text import TfidfVectorizer
@@ -476,13 +475,18 @@ def similarity_rows(
         max_features=int(similarity_config.get("max_features", 40000)),
         sublinear_tf=True,
     )
-    matrix = vectorizer.fit_transform(record.title for record in active)
+    try:
+        matrix = vectorizer.fit_transform(record.title for record in active)
+    except ValueError as error:
+        # Tiny corpora may have no character n-gram occurring twice.
+        if "empty vocabulary" in str(error) or "After pruning, no terms remain" in str(error):
+            return []
+        raise
     indices_by_dataset: dict[str, list[int]] = defaultdict(list)
     for index, record in enumerate(active):
         indices_by_dataset[record.dataset_id].append(index)
 
     minimum_score = float(similarity_config.get("minimum_score", 0.28))
-    per_case = int(similarity_config.get("matches_per_case", 3))
     results: list[dict[str, Any]] = []
     for left_dataset, right_dataset in combinations(datasets, 2):
         left_indices = indices_by_dataset[left_dataset.id]
@@ -538,7 +542,7 @@ def build_analysis(
     vocabulary, common = vocabulary_tables(
         datasets,
         records,
-        base_dir / "config",
+        base_dir / "dictionaries",
         config.get("vocabulary", {}),
     )
     topic_unclassified = topic_unclassified_rows(records)
@@ -549,7 +553,7 @@ def build_analysis(
         "topic_unclassified": topic_unclassified,
         "unclassified": [
             row for row in topic_unclassified
-            if row["classification_status"] == "Не класифіковано"
+            if row["classification_status"] == 'Unclassified'
         ],
         "descriptions": description_rows(descriptions, records, dataset_by_id),
         "chronology": chronology_rows(datasets, records, config.get("chronology", {})),

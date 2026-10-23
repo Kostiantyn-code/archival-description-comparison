@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ui:Archival description comparison}}</title><style>
+:root{--navy:#1f4e78;--blue:#d9eaf7;--ink:#202020;--muted:#667085;--line:#d9e1e8}
+*{box-sizing:border-box} body{margin:0;font-family:Arial,sans-serif;color:var(--ink);background:#f5f7fa}
+main{max-width:1280px;margin:auto;padding:32px} h1{margin:0 0 8px;font-size:30px} h2{margin-top:42px;border-bottom:3px solid var(--navy);padding-bottom:8px}
+.lead{color:var(--muted);max-width:900px} .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin:24px 0}
+.card{background:white;border:1px solid var(--line);border-radius:10px;padding:18px} .card h3{margin:0 0 12px;font-size:17px} .card strong{font-size:30px;color:var(--navy)} .card span{margin-left:8px;color:var(--muted)} .card p{font-size:13px;color:var(--muted)}
+figure{margin:20px 0;background:white;border:1px solid var(--line);padding:14px;border-radius:10px} img{max-width:100%;height:auto;display:block;margin:auto} figcaption{font-size:12px;color:var(--muted);text-align:center}
+.table-wrap{overflow:auto;background:white;border:1px solid var(--line);border-radius:8px} table{border-collapse:collapse;width:100%;font-size:14px} th{background:var(--navy);color:white;text-align:left;position:sticky;top:0} th,td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top} tr:nth-child(even) td{background:#f8fafc}
+.note{background:#fff8e1;border-left:4px solid #d17a22;padding:12px 16px} footer{margin-top:48px;color:var(--muted);font-size:13px}
+</style></head><body><main>
+<h1>{{ui:Archival description comparison}}</h1>
+<p class="lead">{{ui:Each workbook is a dataset; its worksheets are separate inventories. Comparisons use case titles, not the full text of archival documents.}}</p>
+<section class="cards">__CARDS__</section>
+<p class="note">{{ui:Input validation: errors}} __ERRORS__; {{ui:warnings}} __WARNINGS__; {{ui:information}} __INFO__.</p>
+<h2>{{ui:Overview}}</h2>__OVERVIEW__
+<h2>{{ui:Thematic classification coverage}}</h2>
+<p class="lead">{{ui:Each dataset uses all its analyzable titles as 100%; the three exclusive states sum to 100%.}}</p>
+__COVERAGE__
+<h2>{{ui:Inventory control totals}}</h2>__DESCRIPTIONS__
+<p class="lead">{{ui:Category shares use all analyzable titles in the corresponding workbook. Category bars are stacked by inventory; multi-label category shares can sum to more than 100%. Each inventory chronology series uses that inventory's total as its denominator.}}</p>
+<h2>{{ui:Figures}}</h2>__CHARTS__
+<h2>{{ui:Document types}}</h2>
+<p class="lead">{{ui:These are lexical mentions in titles, not verified documents inside a case. Each form counts once per title. A blank rate means there are no analyzable titles.}}</p>
+__TYPES__
+<h2>{{ui:Theme links}}</h2>
+<p><a href="figures/theme_links.html">{{ui:Open the interactive co-classification network}}</a></p>
+<p class="lead">{{ui:Select a dataset or inventory. Shared titles, rates per 1,000 and lift are descriptive measures. Counts, denominators and all pairs are available in CSV and Excel.}}</p>
+<h2>{{ui:Distinctive vocabulary}}</h2>__VOCABULARY__
+<h2>{{ui:Similar case files}}</h2>
+<p class="lead">{{ui:The first 100 lexical matches are shown below. Similarity does not establish that archival files are identical and does not translate titles between languages.}}</p>
+__SIMILARITIES__
+<footer>{{ui:Generated}} __TIME__. {{ui:Full tables: comparison.xlsx and the tables directory.}}</footer>
+</main></body></html>

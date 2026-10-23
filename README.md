@@ -1,367 +1,141 @@
 # Archival Description Comparison
 
 [![Tests](https://github.com/Kostiantyn-code/archival-description-comparison/actions/workflows/tests.yml/badge.svg)](https://github.com/Kostiantyn-code/archival-description-comparison/actions/workflows/tests.yml)
-![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[Українською](#українською) · Python 3.10+ · [MIT](LICENSE)
 
-[English version](README.en.md)
+Compare archival finding aids locally: chronology, thematic coverage, vocabulary,
+lexically similar titles, document-form mentions and theme co-classification.
+**One workbook = one dataset; one worksheet = one archival inventory.** A dataset
+can combine inventories from different archives and fonds (archival record groups).
+Source titles and archive names are preserved.
 
-Локальний Python-інструмент для порівняльного хронологічного, тематичного та
-лексичного аналізу архівних описів у форматі Excel. Програма формує таблиці,
-графіки й автономний HTML-звіт без передавання даних зовнішнім сервісам.
+## Start
 
-Поточна версія в гілці розробки: `0.3.0.dev0`; останній реліз: `v0.2.0`.
-
-## Що вміє програма
-
-- порівнює довільну кількість книг `*.xlsx`;
-- об'єднує всі аркуші однієї книги в один логічний масив;
-- зберігає статистику й архівні реквізити кожного аркуша-опису;
-- аналізує хронологічний розподіл справ у кожній книзі та окремо в кожному описі;
-- складає кожен стовпчик діаграм обсягу, класифікації та категорій із частин за описами;
-- у `categories.png` показує порівнювані книги на панелях поруч зі спільною
-  шкалою часток та однією легендою за файлами;
-  окремі фонди в одній книзі мають власні гами кольорів;
-- у `chronology_by_description.png` накладає описи однієї книги в межах
-  однієї панелі; для кожного опису 100% — усі аналізовані справи саме цього
-  опису, а річний ряд показує їхні відсотки;
-- класифікує українські та російські заголовки за 12 тематичними категоріями;
-- враховує заголовки розділів з особовими справами та списками, навіть коли
-  окремі справи названо лише іменами людей;
-- окремо показує тематично класифіковані, контекстні та некласифіковані справи;
-- визначає частотну, характерну і спільну лексику;
-- порівнює згадки 15 типів документів за кількістю, часткою та частотою на 1000 заголовків;
-- будує мережі співкласифікації категорій і блоків із перемиканням масивів/описів
-  та порівняльною таблицею вибраної пари тем;
-- шукає подібні заголовки між різними масивами;
-- експортує результати в XLSX, CSV, HTML, PNG, SVG і JSON.
-
-## Модель даних
-
-| Рівень | Інтерпретація |
-|---|---|
-| Рядок Excel | Окрема справа або службовий запис |
-| Аркуш Excel | Окремий архівний опис |
-| Книга Excel | Логічний масив, що порівнюється з іншими книгами |
-
-Усі аркуші книги залишаються окремими описами в докладних таблицях і
-графіках, але об'єднуються у підсумках порівняння книг і лексиці. Наприклад,
-описи ДАМО ф. 230 та ЦДІАК України ф. 356 можна подати однією книгою як єдиний
-масив документів канцелярії Миколаївського військового губернатора.
-
-`Dataset` не обмежений одним фондом чи архівом: це може бути реконструйований
-документальний комплекс або дослідницька вибірка. Архів, фонд і опис належать
-кожному аркушу окремо. `record_uid` поєднує ID масиву, назву аркуша та фізичний
-рядок Excel (`dataset:sheet:row-N`), тому повторені номери справ не зливаються.
-Після перестановки рядків у вихідній книзі ці ідентифікатори зміняться.
-
-## Вимоги
-
-- Python 3.10 або новіший;
-- Windows 10/11, Linux або macOS;
-- щонайменше дві книги Excel у форматі `.xlsx`.
-
-Залежності наведено в [`requirements.txt`](requirements.txt).
-
-## Швидкий запуск у Windows
-
-1. Завантажте репозиторій через **Code → Download ZIP** і розпакуйте архів.
-2. Покладіть щонайменше дві книги `.xlsx` у каталог `input`.
-3. Двічі натисніть `run.bat`.
-4. Під час першого запуску скрипт створить середовище Python у
-   `%LOCALAPPDATA%\archival-description-comparison\venv` і встановить залежності.
-5. Відкрийте нову папку `output/run_РРРРММДД_ГГХХСС`.
-
-Повторні запуски, навіть з іншої розпакованої копії, використовують це
-середовище без нового встановлення пакетів. Якщо зміниться `requirements.txt`,
-залежності оновляться. Якщо поруч зі скриптом уже є `.venv`, `run.bat`
-використає його.
-
-## Запуск у Linux або macOS
+Download and extract the project, put **at least two `.xlsx` workbooks** in `input`,
+then run `run.bat` on Windows or `sh run.sh` on Linux/macOS. Python must be installed;
+the launcher installs dependencies on first use and when requirements change.
+Manual installation:
 
 ```bash
-chmod +x run.sh
-./run.sh
+python -m venv .venv
+# Activate .venv, then:
+python -m pip install -r requirements.txt
+python main.py
 ```
 
-Або вручну в Linux чи macOS:
+Open `output/run_*/report.html`. Processing and the interactive report work offline
+after installation; research data are not sent to external services.
 
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python main.py
-```
+## Input
 
-За потреби у Windows можна створити локальне середовище вручну:
+Each worksheet has five columns **in this order**:
 
-```text
-py -3 -m venv .venv
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe main.py
-```
+| Case number | Case title | Inclusive dates | Leaf count | Notes |
+|---|---|---|---|---|
+| 1 | Листування про відкриття школи | 1850–1852 | 12 | |
 
-## Формат вхідних книг
+Optional two-column metadata before the header: `Archive`, `Fond` (or `Fonds`),
+`Inventory`, `Language`. Ukrainian and Russian equivalents are also recognized.
+Use **`uk` or `ru`** for the language of the entire worksheet; otherwise a heuristic
+uses the first 100 titles and defaults to `uk` on a tie. Header detection searches
+the first 25 rows. See [methodology](docs/methodology.md) for recovery rules and limits.
 
-Рекомендований початок кожного аркуша:
+**Analysis languages: Ukrainian and Russian.** English is the report language,
+not an English classifier. Croatian/Italian analysis is not implemented here.
 
-| A | B |
+## Settings and results
+
+- [analysis.yaml](config/analysis.yaml): date limits, vocabulary, similarity and outputs.
+  Reports default to English; set `visualization.language: uk` for Ukrainian.
+  `bilingual_labels: true` adds Ukrainian taxonomy labels to English figures.
+- [datasets.yaml](config/datasets.yaml): optional dataset IDs, labels, references and date limits.
+  Translate proper names explicitly with `visualization.label_overrides` if needed.
+- [categories.yaml](config/categories.yaml): shared category IDs and English labels.
+  [uk.yaml](dictionaries/uk.yaml) and [ru.yaml](dictionaries/ru.yaml) contain the existing
+  weighted rules, ambiguity masks and stopwords, one file per language.
+
+| Output | Use |
 |---|---|
-| Архів | ДАМО |
-| Фонд | 230 |
-| Опис | 1 |
+| `report.html` | Overview, figures and selected tables |
+| `comparison.xlsx` | All tables, case register and validation log |
+| `tables/*.csv` | Machine-readable tables with stable English fields and generated labels |
+| `figures/*.png`, `*.svg` | Figures for inspection and journal illustrations |
+| `figures/theme_links.html` | Interactive network, counts, rates and title examples |
+| `run_manifest.json` | Input/source hashes, versions, settings and output list |
 
-Після метаданих розміщується таблиця:
+Workbook and HTML captions follow the selected report language. Archival wording
+is never automatically translated. Use `--input-dir`, `--output-dir`, `--run-name`
+and `--no-similarity` to override a run; see `python main.py --help`.
 
-```text
-№ справи | Заголовок справи | Крайні дати | Кількість аркушів | Примітки
-```
+Category shares use each dataset's analyzable titles; multiple labels can sum to
+more than 100%. Similarity is lexical, does not translate between languages and
+does not prove that files are identical. Document-form mentions describe titles,
+not the verified contents of a file. Lift is descriptive, not a significance test.
 
-Заголовок таблиці програма шукає автоматично в перших 25 рядках. Метадані
-`Архів`, `Фонд` і `Опис` покращують посилання у звітах. Мову програма визначає
-один раз для всього аркуша за першими 100 заголовками, так само як програма
-контент-аналізу. Якщо у книзі вже є окремий рядок `Мова | ru` або `Мова | uk`,
-вказане значення має пріоритет для всього аркуша. Додавати цей рядок для
-узгодження двох програм не потрібно. Підтримуються службові рядки з роками
-та частково зміщені рядки.
-Автоматично відновлені записи потрапляють на аркуш `Перевірка` і до
-`tables/issues.csv`.
-
-Робочі книги і результати аналізу виключені з Git через `.gitignore`.
-
-## Налаштування масивів
-
-Без додаткового налаштування ідентифікатор і назва масиву формуються з назви
-файла, а архівні реквізити читаються з аркушів. Для сталих підписів у науковій
-роботі відредагуйте [`config/datasets.yaml`](config/datasets.yaml):
-
-```yaml
-datasets:
-  - pattern: "dataset_a.xlsx"
-    id: dataset_a
-    label: "Повна назва логічного масиву"
-    short_label: "Коротка назва"
-    reference: "Архів, фонд, описи"
-    minimum_year: 1800
-    maximum_year: 1901
-```
-
-Межі років задаються окремо для кожного масиву. Це допомагає відкидати
-помилкові роки, не обмежуючи інші книги. Загальні параметри хронології,
-лексики, подібності й форматів звітів містяться у
-[`config/analysis.yaml`](config/analysis.yaml).
-
-## Мова візуалізацій
-
-Українська залишається типовою мовою. Для англомовних ілюстрацій змініть
-параметри у [`config/analysis.yaml`](config/analysis.yaml):
-
-```yaml
-visualization:
-  language: en             # uk (типово) або en
-  bilingual_labels: true   # false — лише переклад; true — English (оригінал)
-  label_overrides:
-    datasets:
-      dataset_a: "Reconstructed documentary collection"
-    dataset_short:
-      dataset_a: "Collection A"
-    archives:
-      "Назва архіву": "Archive name"
-    descriptions:
-      "dataset_a:Опис 1": "Archive name, fond 230: inventory 1"
-```
-
-Перекладаються заголовки, осі, легенди та категорії всіх шести статичних
-графіків, підписи і посилання на них у HTML, а також інтерфейс, вузли й
-перемикачі мережі тем. `bilingual_labels` додає оригінал у дужках до
-перекладених тематичних міток і власних назв в англійському режимі.
-Підписи інтерфейсу й службові позначення залишаються однією вибраною мовою.
-Аналіз, словники, CSV/XLSX, таблиці основного HTML-звіту, заголовки справ і
-посилання на джерела у прикладах мережі зберігають оригінальні дані.
-
-Назви масивів та архівів задаються дослідником і автоматично не перекладаються.
-`datasets` і `dataset_short` використовують ID із `datasets.yaml` або
-`overview.csv`; короткий підпис за відсутності окремого перекладу використовує
-переклад із `datasets`. `archives` використовує точну назву архіву з джерела.
-`descriptions` задає реквізити окремого опису в легендах і перемикачі мережі
-за ключем `dataset_id:sheet_name`; групова легенда графіка категорій будується
-з метаданих архівів, фондів та номерів описів. Довільні назви аркушів
-зберігаються; службове ім’я `Опис N` у мережі стає `Inventory N`.
-Невідомі мітки залишаються мовою оригіналу.
-
-Каталог [`config/visualization.en.json`](config/visualization.en.json) відокремлено
-від аналітичних словників. Через `label_overrides` також можна уточнювати
-`categories`, `category_short`, `macroblocks`, `macroblock_short` та
-`document_types` за їхніми сталими ID. Налаштування мови й контрольні суми
-коду та каталогу візуалізацій зберігаються в `run_manifest.json`.
-Кожен статичний графік має PNG та SVG з текстовими підписами: SVG придатний
-для масштабування й редагування ілюстрацій для журналу. Обидва формати
-керуються наявним параметром `reports.charts`; у HTML графік показано один раз.
-
-## Результати
-
-Кожен запуск створює окремий каталог:
-
-```text
-output/run_.../
-├── comparison.xlsx
-├── report.html
-├── run_manifest.json
-├── figures/
-│   ├── dataset_sizes.png
-│   ├── classification_coverage.png
-│   ├── chronology.png
-│   ├── chronology_by_description.png
-│   ├── categories.png
-│   ├── document_types.png
-│   └── theme_links.html
-└── tables/
-    ├── overview.csv
-    ├── classification_coverage.csv
-    ├── topic_unclassified_cases.csv
-    ├── unclassified_cases.csv
-    ├── descriptions.csv
-    ├── chronology.csv
-    ├── chronology_by_description.csv
-    ├── categories.csv
-    ├── categories_by_description.csv
-    ├── classification_by_description.csv
-    ├── vocabulary.csv
-    ├── common_vocabulary.csv
-    ├── similarities.csv
-    ├── document_types.csv
-    ├── document_types_by_description.csv
-    ├── document_type_mentions.csv
-    ├── theme_links.csv
-    ├── theme_links_by_description.csv
-    ├── theme_link_cases.csv
-    ├── records.csv
-    └── issues.csv
-```
-
-Книга `comparison.xlsx` містить аркуші:
-
-- `Огляд` — розмір масивів, роки, описи та повнота даних;
-- `Класифікація` — покриття тематичною класифікацією;
-- `Некласифіковані` — справи без предметної теми;
-- `Описи` — контрольна статистика кожного аркуша;
-- `Хронологія` і `Категорії` — порівняльні ряди книг;
-- `Хронологія описів`, `Категорії описів` і `Класифікація описів` — зрізи за аркушами;
-- `Характерна лексика` і `Спільна лексика`;
-- `Подібні справи` — найближчі заголовки з різних книг;
-- `Справи` — нормалізований реєстр;
-- `Перевірка` — відновлення, пропуски й неоднозначності;
-- `Типи документів`, `Типи за описами`, `Згадки типів` — частоти та знайдені вирази;
-- `Зв’язки тем`, `Зв’язки за описами`, `Справи зв’язків` — показники пар і справи-підстави.
-
-`figures/theme_links.html` працює автономно без Інтернету. Перемикач дозволяє
-обрати масив або опис, категорії або блоки, частоту на 1000, кількість чи lift.
-Вузли мають сталі позиції, а лінії — спільну шкалу для кожного показника.
-Натискання пари показує приклади справ і таблицю цієї пари в усіх масивах.
-HTML-мережа створюється, коли `reports.html: true`, незалежно від `reports.charts`.
-CSV, XLSX та PNG керуються відповідними наявними параметрами `reports`.
-
-`run_manifest.json` фіксує версію програми, версію словників, використані
-книги, контрольні суми SHA-256, версію правил типів документів і перелік створених файлів.
-
-## Як обчислюються показники
-
-- За 100% у тематичних частках береться кількість всіх аналізованих справ
-  відповідного масиву. Знаменник обчислюється окремо для кожної книги.
-- Для таблиці категорій за описами наведено також частку від справ окремого
-  опису. На `categories.png` частка кожної категорії обчислюється від справ
-  відповідного файлу; кольорові сегменти показують внесок описів у цю частку,
-  а спільна легенда перелічує фонди й описи кожного файла. На графіках
-  обсягу та класифікації сегменти відображають абсолютні кількості.
-- На `chronology_by_description.png` кожен опис має власні 100% — кількість
-  усіх його аналізованих справ. Річний відсоток — кількість справ цього опису
-  за рік, поділена на кількість справ цього ж опису. Описи одного файла
-  накладено на одній панелі зі спільною шкалою 0–100%. Таблиці хронології
-  зберігають абсолютні кількості.
-  Якщо справу датовано кількома роками, вона входить до кожного з них, тому
-  сума річних часток може перевищувати 100%.
-- Класифікація множинна: одна справа може належати до кількох категорій, тому
-  сума часток тематичних категорій може перевищувати 100%.
-- Покриття класифікацією складається з трьох взаємовиключних станів:
-  `Тематично класифіковано`, `Лише контекст`, `Не класифіковано`.
-- `topic_unclassified_cases.csv` містить усі справи без предметної теми,
-  включно з контекстними. `unclassified_cases.csv` містить лише справи без
-  теми й без контекстної категорії.
-- За типового режиму справа `1850–1854` враховується в кожному з п'яти років.
-- Кожна книга отримує одну панель із накладеними рядами своїх описів. Усі
-  панелі мають спільну вісь років; сума рядів описів відтворює ряд книги.
-- Подібність визначається локально за символьним TF-IDF і косинусною мірою.
-- Тип документа враховується один раз на заголовок, навіть за кількох згадок.
-  Це лексична ознака заголовка, а не перевірений склад документів у справі.
-- Для пари тем `shared_per_1000_titles = shared_titles / titles_total × 1000`,
-  `relative_frequency (lift) = shared_titles × titles_total / (theme_a_titles × theme_b_titles)`.
-  Контекстні категорії не формують зв’язків. Усі масиви мають однаковий набір пар,
-  включно з нульовими. Якщо знаменник нульовий, показник лишається порожнім.
-
-Докладніше див. [`docs/methodology.md`](docs/methodology.md).
-
-## Параметри командного рядка
-
-```text
-python main.py --input-dir input --output-dir output
-python main.py --no-similarity
-python main.py --run-name test_run
-```
-
-`--input-dir` і `--output-dir` можуть містити як відносні, так і абсолютні
-шляхи. Повний перелік параметрів:
-
-```text
-python main.py --help
-```
-
-## Структура репозиторію
-
-```text
-config/        параметри аналізу, масивів і категорій
-dictionaries/ тематичні словники українською та російською
-docs/          методичні примітки
-input/         каталог для робочих книг
-src/           код завантаження, аналізу та звітів
-tests/         автоматичні тести
-main.py        точка запуску
-run.bat        запуск у Windows
-run.sh         запуск у Linux і macOS
-```
-
-## Перевірка
-
-Звіт про усунення дублювання, перевірку еквівалентності та вимір швидкості
-підрахунків: [аудит коду](docs/refactoring-audit.md).
+## Development
 
 ```bash
 python -m compileall -q main.py src tests
 python -m unittest discover -s tests -v
 ```
 
-Ті самі перевірки автоматично виконуються в GitHub Actions для підтримуваних
-версій Python.
+[Methodology and dictionary format](docs/methodology.md) ·
+[Contributing](CONTRIBUTING.md) · [Citation](CITATION.cff) ·
+[Related analysis tool](https://github.com/Kostiantyn-code/archival-description-analysis)
 
-## Обмеження
+## Українською
 
-Класифікація залежить від якості й повноти словників. Високий відсоток
-некласифікованих справ є підставою для перегляду словників або виділення нових
-категорій, але не доводить відсутність теми в документах. Пошук подібності
-знаходить лексично близькі формулювання і не замінює джерелознавчу експертизу.
+Локальне порівняння архівних описів: хронологія, тематичне покриття, лексика,
+подібні заголовки, згадки типів документів і співкласифікація тем.
+**Одна книга Excel = один масив; один аркуш = один архівний опис.** Масив може
+об'єднувати описи з різних архівів і фондів. Заголовки й назви архівів зберігаються.
 
-Програма аналізує заголовки справ, а не повні тексти документів.
+### Запуск
 
-## Пов'язані проєкти
+Завантажте й розпакуйте проєкт, покладіть **щонайменше дві книги `.xlsx`** у `input`.
+У Windows запустіть `run.bat`, у Linux/macOS — `sh run.sh`. Потрібен установлений
+Python 3.10+. Залежності встановлюються під час першого запуску й після зміни
+`requirements.txt`. Для ручного встановлення скористайтеся командами вище.
+Відкрийте `output/run_*/report.html`. Після встановлення аналіз і звіт працюють
+офлайн; дослідницькі дані не передаються зовнішнім сервісам.
 
-Словники й правила класифікації розвиваються у проєкті
-[`archival-description-analysis`](https://github.com/Kostiantyn-code/archival-description-analysis).
+### Вхідні дані
 
-## Цитування і внески
+П'ять колонок **у фіксованому порядку**: номер справи, заголовок, крайні дати,
+кількість аркушів, примітки. Перед таблицею можна додати двоколонкові метадані
+`Архів`, `Фонд`, `Опис`, `Мова`; англійські й російські відповідники також підтримуються.
+Мова **всього аркуша — `uk` або `ru`**. Без явного значення використовується
+евристика за першими 100 заголовками; за рівності голосів обирається `uk`.
+Шапка таблиці шукається в перших 25 рядках.
 
-Метадані для цитування наведено у [`CITATION.cff`](CITATION.cff). Повідомлення
-про помилки й пропозиції можна створювати через GitHub Issues. Правила внесення
-змін — у [`CONTRIBUTING.md`](CONTRIBUTING.md).
+**Мови аналізу: українська й російська.** Англійська є мовою звіту.
+Аналіз хорватською та італійською в цій програмі ще не реалізовано.
 
-## Ліцензія
+### Налаштування й результати
 
-Код поширюється за ліцензією [MIT](LICENSE). Вхідні архівні описи та створені
-на їх основі результати до репозиторію не входять.
+Параметри аналізу містяться в `config/analysis.yaml`, назви й межі масивів —
+у `config/datasets.yaml`. Типова мова звітів — англійська; для української
+задайте `visualization.language: uk`. `bilingual_labels: true` додає українські
+назви категорій до англійських ілюстрацій. Переклади власних назв задаються явно
+через `visualization.label_overrides`.
+
+Спільні ідентифікатори категорій визначає `config/categories.yaml`. Правила,
+маски неоднозначності й стоп-слова об'єднано у `dictionaries/uk.yaml` і `ru.yaml`.
+
+`report.html` містить огляд та ілюстрації; `comparison.xlsx` — усі таблиці,
+реєстр справ і журнал перевірки; `tables/*.csv` — машинозчитувані дані зі сталими
+англійськими полями й програмними мітками. PNG/SVG містяться в `figures`,
+інтерактивна мережа — у `figures/theme_links.html`. `run_manifest.json` фіксує
+контрольні суми, версії, налаштування та перелік результатів. Підписи Excel і HTML
+відповідають обраній мові; архівні тексти автоматично не перекладаються.
+
+Для окремого запуску доступні `--input-dir`, `--output-dir`, `--run-name`,
+`--no-similarity`; довідка — `python main.py --help`.
+
+Частки категорій обчислюються від заголовків відповідного масиву; за множинної
+класифікації їх сума може перевищувати 100%. Лексична подібність не перекладає
+між мовами й не доводить тотожності справ. Згадки типів документів стосуються
+слів у заголовках, а не перевіреного складу справ. Lift є описовим показником.
+Методику, обмеження, формат словників і перевірки описано в
+[методичних примітках англійською](docs/methodology.md). Команди перевірки наведено вище.
+Ліцензія — MIT; метадані цитування — `CITATION.cff`.

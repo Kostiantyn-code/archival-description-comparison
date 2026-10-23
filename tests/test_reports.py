@@ -7,9 +7,11 @@ from pathlib import Path
 
 from src import __version__
 from src.models import Category, Dataset, Description
-from src.reports import (
+from src.reports import write_manifest, _tabular_sheet
+from openpyxl import Workbook, load_workbook
+from src.charts import (
     _category_figure, _description_chronology_panel, _description_colors,
-    _fond_summary, _stacked_description_bars, write_manifest,
+    _fond_summary, _stacked_description_bars,
 )
 
 
@@ -37,8 +39,8 @@ class ReportTests(unittest.TestCase):
         colors = _description_colors(items)
         self.assertNotEqual(colors[("left", "Опис 2")], colors[("left", "Опис 3")])
         self.assertNotEqual(colors[("left", "Опис 1")], colors[("left", "Опис 2")])
-        self.assertIn("Фонд 230: Описи 2, 3", _fond_summary(items[:3]))
-        self.assertIn("Фонд 356: Опис 1", _fond_summary(items[:3]))
+        self.assertIn("Fond 230: Inventories 2, 3", _fond_summary(items[:3]))
+        self.assertIn("Fond 356: Inventory 1", _fond_summary(items[:3]))
 
         fig = _category_figure([left, right], items, [category], counts, colors,
                                {"left": 20, "right": 8})
@@ -54,8 +56,8 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(fig.axes[0].get_xlim(), fig.axes[1].get_xlim())
         self.assertTrue(fig.axes[0].yaxis_inverted())
         self.assertEqual([text.get_text() for text in fig.legends[0].get_texts()], [
-            "ДАМО, ф. 230, оп. 2, 3\nЦДІАК, ф. 356, оп. 1",
-            "ДАМО, ф. 229, оп. 1, 2",
+            "ДАМО, fond 230: inventory 2, 3\nЦДІАК, fond 356: inventory 1",
+            "ДАМО, fond 229: inventory 1, 2",
         ])
         plt.close(fig)
 
@@ -72,8 +74,8 @@ class ReportTests(unittest.TestCase):
         )
         self.assertEqual(len(ax.lines), 3)
         self.assertEqual([line.get_ydata()[0] for line in ax.lines], [50, 50, 25])
-        self.assertIn("100% для кожного опису окремо", ax.get_title(loc="left"))
-        self.assertEqual(ax.get_ylabel(), "Частка справ опису, %")
+        self.assertIn("100% for each inventory separately", ax.get_title(loc="left"))
+        self.assertEqual(ax.get_ylabel(), "Share of case files in the inventory, %")
         self.assertEqual(ax.get_ylim(), (0, 100))
         self.assertEqual(len(ax.child_axes), 0)
         plt.close(fig)
@@ -151,6 +153,21 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(payload["script_version"], __version__)
             self.assertEqual(list(payload["sha256"]), ["external.xlsx"])
             self.assertEqual(len(payload["sha256"]["external.xlsx"]), 64)
+
+
+    def test_xlsx_preserves_formula_like_source_titles_as_literal_text(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "literal.xlsx"
+            book = Workbook()
+            book.remove(book.active)
+            title = '=Source title, not a formula'
+            _tabular_sheet(book, "Cases", "Case register", [("title", "Title")], [{"title": title}])
+            book.save(path)
+            book.close()
+            saved = load_workbook(path, data_only=False)
+            self.assertEqual(saved["Cases"]["A6"].value, title)
+            self.assertEqual(saved["Cases"]["A6"].data_type, "s")
+            saved.close()
 
 
 if __name__ == "__main__":

@@ -27,8 +27,8 @@ reports:
   html: true
   charts: true
 
-# Presentation language only; analysis, dictionaries and CSV/XLSX stay unchanged.
+# Report language; CSV uses stable English fields and generated labels.
 visualization:
-  language: uk
+  language: en
   bilingual_labels: false
   label_overrides: {}

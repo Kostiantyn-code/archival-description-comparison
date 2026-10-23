@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="uk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Зв’язки між темами справ · Мережа співкласифікації справ</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{ui:Theme links · Case co-classification network}}</title>
 <style>:root{--background:#f7f9fb;--foreground:#203549;--viz-series-1:#386a9a;--viz-series-2:#c28730;--viz-series-3:#7b64a5;--viz-series-4:#7c8d8e;--viz-series-5:#b14549}body{margin:0;padding:25px;font:14px system-ui,sans-serif;color:var(--foreground);background:var(--background)}@media(prefers-color-scheme:dark){:root{--background:#17212a;--foreground:#e6edf2;--viz-series-1:#70a6df;--viz-series-2:#e5b15e;--viz-series-3:#af95de;--viz-series-4:#a8bac0;--viz-series-5:#f08d88}}@media(max-width:740px){body{padding:8px}}</style></head><body>
 <div id="theme-links-report">
 <style>
@@ -47,20 +47,20 @@
 #theme-links-report svg .node-count {fill:var(--muted);font-size:10px;pointer-events:none}
 @media(max-width:740px){#theme-links-report {padding:13px}#theme-links-report .main{grid-template-columns:1fr}#theme-links-report .details{max-height:none}#theme-links-report .rank-list{grid-template-columns:1fr}}
 </style>
-<h2>Зв’язки між темами справ / Мережа співкласифікації справ</h2>
-<p class="sub">__SCOPE__. Дві теми з’єднані, якщо заголовок однієї справи віднесено до обох. Натисніть на лінію або пару нижче, щоб побачити приклади.</p>
+<h2>{{ui:Theme links / Case co-classification network}}</h2>
+<p class="sub">__SCOPE__. {{ui:Two themes are linked when a case title is assigned to both. Select a line or a pair below to see examples.}}</p>
 <div class="controls">
-<label>Рівень<select id="tl-kind"><option value="cat">Тематичні категорії</option><option value="block">Тематичні блоки</option></select></label>
-<label>Масив / опис<select id="tl-scope"></select></label>
-<label>Порядок зв’язків<select id="tl-sort"><option value="rate">На 1000 заголовків</option><option value="count">За кількістю справ</option><option value="lift">За відносною частотою</option></select></label>
-<div class="stat"><strong id="tl-total"></strong><span>заголовків справ</span></div>
-<div class="stat"><strong id="tl-multi"></strong><span id="tl-multi-label">із кількома темами</span></div>
+<label>{{ui:Level}}<select id="tl-kind"><option value="cat">{{ui:Thematic categories}}</option><option value="block">{{ui:Thematic blocks}}</option></select></label>
+<label>{{ui:Dataset / inventory}}<select id="tl-scope"></select></label>
+<label>{{ui:Link ranking}}<select id="tl-sort"><option value="rate">{{ui:Per 1,000 case titles}}</option><option value="count">{{ui:By number of case files}}</option><option value="lift">{{ui:By lift}}</option></select></label>
+<div class="stat"><strong id="tl-total"></strong><span>{{ui:case titles}}</span></div>
+<div class="stat"><strong id="tl-multi"></strong><span id="tl-multi-label">{{ui:with multiple themes}}</span></div>
 </div>
 <p class="help" id="tl-help"></p>
-<div class="main"><div class="plot"><svg viewBox="0 0 850 525" role="img" aria-label="Граф співкласифікації тематик архівних справ" id="tl-svg"></svg><div class="key" id="tl-legend"></div></div><section class="details" aria-live="polite" id="tl-details"></section></div>
-<section class="rank"><div class="rank-head"><strong>Пари тем</strong><span id="tl-visible"></span></div><div class="rank-list" id="tl-rank"></div></section>
-<p class="note">Ураховано лише тематичні категорії справ; контекстні згадки виключено. Одна справа з трьома темами формує три пари. Коефіцієнт відносної частоти — кількість спільних справ, поділена на очікувану кількість за незалежного розподілу тематичних міток у вибраному масиві або описі; це описовий показник, а не доказ змістового чи причинного зв’язку. У режимі lift показано пари з не менш ніж max(3, ⌈N × 0,0015⌉) спільними заголовками. Порожнє значення означає відсутність знаменника. Високий lift за малої кількості справ потребує обережного тлумачення. Повні таблиці: theme_links.csv, theme_links_by_description.csv, theme_link_cases.csv у каталозі tables.</p>
-<section class="rank"><h3>Вибрана пара в усіх масивах</h3><div id="tl-comparison" style="overflow:auto"></div></section>
+<div class="main"><div class="plot"><svg viewBox="0 0 850 525" role="img" aria-label="{{ui:Theme co-classification network of archival case files}}" id="tl-svg"></svg><div class="key" id="tl-legend"></div></div><section class="details" aria-live="polite" id="tl-details"></section></div>
+<section class="rank"><div class="rank-head"><strong>{{ui:Theme pairs}}</strong><span id="tl-visible"></span></div><div class="rank-list" id="tl-rank"></div></section>
+<p class="note">{{ui:Only subject categories are included; context mentions are excluded. A case with three themes creates three pairs. Lift is the observed number of shared cases divided by the expected number under independent theme assignments in the selected corpus or inventory. It is a descriptive measure, not evidence of a substantive or causal relationship. Lift mode shows pairs with at least max(3, ⌈N × 0.0015⌉) shared titles. A blank value indicates a missing denominator. High lift based on few cases requires cautious interpretation. Full tables: theme_links.csv, theme_links_by_description.csv and theme_link_cases.csv in the tables directory.}}</p>
+<section class="rank"><h3>{{ui:Selected pair across datasets}}</h3><div id="tl-comparison" style="overflow:auto"></div></section>
 <script type="application/json" id="tl-data">__DATA__</script>
 <script>
 (()=>{
@@ -69,7 +69,7 @@
  function wrapLabel(text,width){const lines=[''];for(const word of text.split(/\s+/)){const last=lines.length-1;if(lines[last]&&lines[last].length+word.length+1>width)lines.push(word);else lines[last]+=(lines[last]?' ':'')+word}return lines}
  const ns='http://www.w3.org/2000/svg'; const el=(tag,attrs={})=>{const n=document.createElementNS(ns,tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,v);return n};
  const escape=s=>String(s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
- const fmt=n=>new Intl.NumberFormat('uk-UA').format(n), fmtLift=n=>new Intl.NumberFormat('uk-UA',{maximumFractionDigits:2}).format(n);
+ const fmt=n=>new Intl.NumberFormat('en-GB').format(n), fmtLift=n=>new Intl.NumberFormat('en-GB',{maximumFractionDigits:2}).format(n);
  const metric=(e,sort)=>sort==='count'?e.count:sort==='rate'?e.rate:e.lift;
  const scope=$('tl-scope'); for(const [k,v] of data.meta.scopes){const o=document.createElement('option');o.value=k;o.textContent=v;scope.append(o)}
  const ring=(ids,rx,ry)=>Object.fromEntries(ids.map((id,i)=>{const angle=-Math.PI/2+2*Math.PI*i/ids.length;return [id,[425+rx*Math.cos(angle),261+ry*Math.sin(angle)]]}));
@@ -88,9 +88,9 @@
   display=eligible.slice(0,kind==='cat'?24:6);
   selected=display.find(e=>selected&&key(e)===key(selected))||display[0]||null;
   $('tl-total').textContent=fmt(v.total);$('tl-multi').textContent=fmt(v.multi);
-  $('tl-multi-label').textContent=kind==='cat'?'із кількома темами':'із кількома блоками';
-  $('tl-help').textContent=sort==='rate'?'Товщина лінії показує спільні заголовки на 1000 заголовків масиву або опису. Шкала спільна для всіх виборів.':sort==='count'?'Товщина лінії показує кількість спільних справ на спільній шкалі. Для читабельності граф містить найчастіші зв’язки.':`Лінії показують пари щонайменше з ${fmt(min)} спільними справами; їхня товщина відповідає відносній частоті.`;
-  $('tl-visible').textContent=`Показано ${display.length} із ${v.edges.filter(e=>e.count>0).length} ненульових пар${sort==='lift'?' (з порогом)':''}`;
+  $('tl-multi-label').textContent=kind==='cat'?'{{ui:with multiple themes}}':'{{ui:with multiple blocks}}';
+  $('tl-help').textContent=sort==='rate'?'{{ui:Line width shows shared titles per 1,000 titles in the dataset or inventory. The scale is shared across selections.}}':sort==='count'?'{{ui:Line width shows the number of shared cases on a common scale. The graph displays the most frequent links for readability.}}':`{{ui:Lines show pairs with at least}} ${fmt(min)} {{ui:shared case files}}; {{ui:their width represents lift.}}`;
+  $('tl-visible').textContent=`{{ui:Showing}} ${display.length} {{ui:of}} ${v.edges.filter(e=>e.count>0).length} {{ui:non-zero pairs}}${sort==='lift'?' {{ui:(with a threshold)}}':''}`;
   renderGraph(v,kind,sort);renderRank(kind,sort);renderDetails(kind);
  }
  function renderGraph(v,kind,sort){
@@ -100,12 +100,12 @@
   const gLines=el('g');svg.append(gLines);
   for(const e of display){const [x1,y1]=pos[e.a],[x2,y2]=pos[e.b],isSelected=selected&&key(e)===key(selected),value=metric(e,sort);
    const width=1.5+5*Math.sqrt(value/edgeMax);
-   const line=el('line',{x1,y1,x2,y2,stroke:isSelected?'var(--viz-series-5)':'var(--foreground)','stroke-width':width,opacity:isSelected?'0.95':'0.23',class:'edge',tabindex:'0',role:'button','aria-label':`${labels(kind,e.a)} і ${labels(kind,e.b)}: ${e.count} справ`});
-   const title=el('title');title.textContent=`${labels(kind,e.a)} + ${labels(kind,e.b)} · ${fmt(e.count)} справ · ${fmtLift(e.lift)}×`;line.append(title);
+   const line=el('line',{x1,y1,x2,y2,stroke:isSelected?'var(--viz-series-5)':'var(--foreground)','stroke-width':width,opacity:isSelected?'0.95':'0.23',class:'edge',tabindex:'0',role:'button','aria-label':`${labels(kind,e.a)} {{ui:and}} ${labels(kind,e.b)}: ${e.count} {{ui:case files}}`});
+   const title=el('title');title.textContent=`${labels(kind,e.a)} + ${labels(kind,e.b)} · ${fmt(e.count)} {{ui:case files}} · ${fmtLift(e.lift)}×`;line.append(title);
    line.addEventListener('click',()=>selectEdge(e));line.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();selectEdge(e)}});gLines.append(line);
   }
   for(const id of keys){const [x,y]=pos[id],n=v.nodes[id]||0,r=kind==='cat'?7+11*Math.sqrt((v.total?n/v.total:0)/max):12+15*Math.sqrt((v.total?n/v.total:0)/max),block=kind==='cat'?data.meta.catBlock[id]:id;
-   const group=el('g',{class:'node',tabindex:'0',role:'button','aria-label':`${labels(kind,id)}: ${fmt(n)} справ. Показати найчастіший зв’язок.`});
+   const group=el('g',{class:'node',tabindex:'0',role:'button','aria-label':`${labels(kind,id)}: ${fmt(n)} {{ui:case files}}. {{ui:Show the most frequent link.}}`});
    const circle=el('circle',{cx:x,cy:y,r,fill:color[block],stroke:'var(--background)','stroke-width':3});group.append(circle);
    let anchor='middle',tx=x,ty=y+r+17;
    if(kind==='cat'&&x<290){anchor='end';tx=x-15;ty=y+4}
@@ -114,7 +114,7 @@
    const txt=el('text',{x:tx,y:ty,'text-anchor':anchor,class:'node-label'}),label=labels(kind,id,true);
    const lines=data.meta.bilingual?wrapLabel(label,24):[label];
    lines.forEach((text,i)=>{const span=el('tspan',{x:tx,dy:i?14:0});span.textContent=text;txt.append(span)});group.append(txt);
-   const sub=el('text',{x:tx,y:ty+14*lines.length,'text-anchor':anchor,class:'node-count'});sub.textContent=fmt(n)+' справ';group.append(sub);
+   const sub=el('text',{x:tx,y:ty+14*lines.length,'text-anchor':anchor,class:'node-count'});sub.textContent=fmt(n)+' {{ui:case files}}';group.append(sub);
    function choose(){const e=display.find(e=>e.a===id||e.b===id);if(e)selectEdge(e)}
    group.addEventListener('click',choose);group.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();choose()}});svg.append(group);
   }
@@ -123,10 +123,10 @@
  function renderRank(kind,sort){const holder=$('tl-rank');holder.replaceChildren();for(const e of display){const b=document.createElement('button');b.type='button';b.setAttribute('aria-pressed',String(selected&&key(selected)===key(e)));
   const s=document.createElement('span');s.textContent=`${labels(kind,e.a,true)} + ${labels(kind,e.b,true)}`;s.title=`${labels(kind,e.a)} + ${labels(kind,e.b)}`;
   const v=document.createElement('b');v.textContent=sort==='count'?fmt(e.count):sort==='rate'?fmtLift(e.rate)+' / 1000':fmtLift(e.lift)+'×';b.append(s,v);b.addEventListener('click',()=>selectEdge(e));holder.append(b)}}
- function renderDetails(kind){const host=$('tl-details');if(!selected){host.innerHTML='<h3>Немає пар за поточним фільтром</h3>'; $('tl-comparison').replaceChildren(); return}
-  const e=selected;host.innerHTML=`<h3>Вибраний зв’язок</h3><div class="pair">${escape(labels(kind,e.a))} + ${escape(labels(kind,e.b))}</div><div class="metric"><div><strong>${fmt(e.count)}</strong><span>спільних справ</span></div><div><strong>${fmtLift(e.rate)}</strong><span>на 1000</span></div><div><strong>${fmtLift(e.lift)}×</strong><span>відносна частота</span></div></div><p class="hint">Приклади заголовків справ, що формують цей зв’язок:</p><ol class="examples">${e.examples.map(s=>`<li>${escape(s.title)}<small>${escape(s.ref)}</small></li>`).join('')}</ol>`;
+ function renderDetails(kind){const host=$('tl-details');if(!selected){host.innerHTML='<h3>{{ui:No pairs match the current filter}}</h3>'; $('tl-comparison').replaceChildren(); return}
+  const e=selected;host.innerHTML=`<h3>{{ui:Selected link}}</h3><div class="pair">${escape(labels(kind,e.a))} + ${escape(labels(kind,e.b))}</div><div class="metric"><div><strong>${fmt(e.count)}</strong><span>{{ui:shared case files}}</span></div><div><strong>${fmtLift(e.rate)}</strong><span>{{ui:per 1,000}}</span></div><div><strong>${fmtLift(e.lift)}×</strong><span>{{ui:lift}}</span></div></div><p class="hint">{{ui:Example case titles contributing to this link:}}</p><ol class="examples">${e.examples.map(s=>`<li>${escape(s.title)}<small>${escape(s.ref)}</small></li>`).join('')}</ol>`;
   const table=document.createElement('table');table.style.cssText='width:100%;border-collapse:collapse;text-align:left';
-  const header=table.insertRow();for(const label of ['Масив','Заголовків','З темою A','З темою B','Спільних','На 1000','Lift']){const th=document.createElement('th');th.textContent=label;th.style.padding='8px';header.append(th)}
+  const header=table.insertRow();for(const label of ['{{ui:Dataset}}','{{ui:Case titles}}','{{ui:With theme A}}','{{ui:With theme B}}','{{ui:Shared}}','{{ui:Per 1,000}}','Lift']){const th=document.createElement('th');th.textContent=label;th.style.padding='8px';header.append(th)}
   for(const [id,label] of data.meta.datasets){const profile=data.scopes[id][kind], pair=profile.edges.find(p=>key(p)===key(e)); const row=table.insertRow();
    for(const value of [label,fmt(profile.total),fmt(profile.nodes[e.a]||0),fmt(profile.nodes[e.b]||0),fmt(pair.count),pair.rate===null?'—':fmtLift(pair.rate),pair.lift===null?'—':fmtLift(pair.lift)]){const td=row.insertCell();td.textContent=value;td.style.padding='8px'}}
   $('tl-comparison').replaceChildren(table);
